@@ -1,0 +1,42 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix crml: <http://w3id.org/stlab/crml#> .
+@prefix rml: <http://semweb.mmlab.be/ns/rml#> .
+@prefix ql: <http://semweb.mmlab.be/ns/ql#> .
+@prefix places: <https://w3id.org/stlab/places/> .
+@prefix core: <https://dati.isprambiente.it/ontology/core/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix wgs84_pos: <http://www.w3.org/2003/01/geo/wgs84_pos#> .
+@prefix geosparql: <http://www.opengis.net/ont/geosparql#> .
+
+
+<#ProvincesCSV>
+  rml:source "./examples/provinces.csv" ;
+  rml:referenceFormulation ql:CSV;
+  crml:separator ",".
+
+<#Provinces>
+  rml:logicalSource <#ProvincesCSV>;
+  
+  rr:subjectMap [
+    rr:template "https://dati.isprambiente.it/ld/place/{COD_PROV}";
+    rr:class places:Province
+  ];
+
+  rr:predicateObjectMap [
+    rr:predicate places:istat;
+    rr:objectMap [
+      rml:reference "COD_PROV";
+      rr:datatype xsd:string
+    ]
+  ];
+
+  rr:predicateObjectMap [
+    rr:predicate rdfs:label;
+    rr:objectMap [
+      rml:reference "DEN_PROV";
+      rr:datatype xsd:string
+    ]
+  ].
+  
+  
