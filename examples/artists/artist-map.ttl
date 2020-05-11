@@ -1,0 +1,45 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix rml: <http://semweb.mmlab.be/ns/rml#> .
+@prefix ql: <http://semweb.mmlab.be/ns/ql#> .
+@prefix ex: <http://ex.com/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<#ArtistMapping>
+  rml:logicalSource [ 
+    rml:source "./examples/artists/Artist.csv" ;
+    rml:referenceFormulation ql:CSV
+  ];
+
+  rr:subjectMap [
+    rr:template "http://ex.com/{ID}" ;
+    rr:class ex:Person 
+  ];
+  
+  rr:predicateObjectMap [ 
+    rr:predicate ex:birth_date ;
+    rr:objectMap [ 
+       rml:reference "BIRTH_DATE";
+       rml:datatype xsd:date
+    ]
+  ];
+  
+  rr:predicateObjectMap [ 
+    rr:predicate ex:birth_place ;
+    rr:objectMap [ 
+       rr:parentTriplesMap <#PlaceMapping>;
+       rr:joinCondition [
+           rr:child "BIRTH_PLACE";
+           rr:parent "CODE"
+        ]
+  ]].
+
+<#PlaceMapping>
+  rml:logicalSource [ 
+    rml:source "./examples/artists/Place.csv" ;
+    rml:referenceFormulation ql:CSV
+  ];
+    
+  rr:subjectMap [
+    rr:template "http://ex.com/{CODE}";
+    rr:class ex:Place
+  ].
