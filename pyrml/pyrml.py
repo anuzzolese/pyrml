@@ -1433,7 +1433,7 @@ class EvalParser():
     
     @staticmethod
     def parse(expr, row):
-        logging.debug("Expr", expr)
+        #logging.debug("Expr", expr)
         tree = EvalParser.LARK.parse(expr)
         return EvalTransformer(row).transform(tree)
     
