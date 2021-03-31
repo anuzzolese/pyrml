@@ -903,10 +903,6 @@ class TripleMappings(AbstractMap):
                         results = sbj_representation.merge(pom_representation, how='left', suffixes=("_l", "_r"), left_on="index", right_on="index", sort=False)
                         #results = pd.concat([sbj_representation, pom_representation], axis=1, sort=False)
                     except Exception as e:
-                        print(sbj_representation)
-                        print(pom_representation)
-                        print(pom_representation.index.duplicated())
-                        
                         raise e
                     for k,v in results.iterrows():
                         
@@ -1199,9 +1195,7 @@ class TermUtils():
     @staticmethod
     def __eval_functions(text, row):
         
-        expr = EvalParser.parse(text, row)
-        print("expr", expr)
-        return expr
+        return EvalParser.parse(text, row)
     
     @staticmethod
     def __eval_functions_old(text, row):
