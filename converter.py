@@ -3,6 +3,8 @@ from pyrml import RMLConverter
 import logging
 import os, codecs
 
+from pathlib import Path
+
 class PyrmlCMDTool:
 
     def __init__(self):

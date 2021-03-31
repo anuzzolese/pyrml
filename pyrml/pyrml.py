@@ -9,8 +9,6 @@ from builtins import staticmethod
 import re, os
 from typing import Dict, Union, Set
 
-from pathlib import Path
-
 from pandas.core.frame import DataFrame
 from rdflib import URIRef, Graph, plugin
 from rdflib.query import Processor, Result
