@@ -6,7 +6,7 @@ __status__ = "Pre-Alpha"
 
 from abc import ABC, abstractclassmethod
 from builtins import staticmethod
-import re, o
+import re, os
 from typing import Dict, Union, Set
 
 from pathlib import Path
