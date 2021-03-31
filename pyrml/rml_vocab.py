@@ -21,6 +21,7 @@ JOIN = URIRef(RR + "Join")
 JOIN_CONDITION = URIRef(RR + "joinCondition")
 
 CHILD = URIRef(RR + "child")
+
 PARENT = URIRef(RR + "parent")
 
 CONSTANT = URIRef(RR + "constant")
@@ -60,6 +61,8 @@ PREDICATE_OBJECT_MAP = URIRef(RR + "predicateObjectMap")
 PREDICATE_OBJECT_MAP_CLASS = URIRef(RR + "PredicateObjectMap")
 
 PREDICATE = URIRef(RR + "predicate")
+
+PREDICATE_MAP = URIRef(RR + "predicateMap")
 
 OBJECT_MAP = URIRef(RR + "objectMap")
 
