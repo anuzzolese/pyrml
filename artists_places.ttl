@@ -1,0 +1,26 @@
+@prefix ns1: <http://ex.com/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<http://ex.com/3> a ns1:Place .
+
+<http://ex.com/Deputy/RNA29> a ns1:Deputy ;
+    rdfs:label "Ronald Anderson nato il 1929-12-06"@it ;
+    ns1:birth_date "1929-12-06" ;
+    ns1:birth_place <http://ex.com/2> .
+
+<http://ex.com/Senator/RTM19> a ns1:Senator ;
+    rdfs:label "Robert Theodore McCall nato il 1919-12-23"@it ;
+    ns1:birth_date "1919-12-23" ;
+    ns1:birth_place <http://ex.com/1> .
+
+<http://ex.com/1> a ns1:Place .
+
+<http://ex.com/2> a ns1:Place .
+
+ns1:Deputy a <http://www.w3.org/2002/07/owl#Class> .
+
+ns1:Senator a <http://www.w3.org/2002/07/owl#Class> .
+
