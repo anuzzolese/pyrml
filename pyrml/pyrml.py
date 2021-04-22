@@ -764,6 +764,7 @@ class SubjectMap(AbstractMap):
             
         
         df_1 = df.apply(l, axis=1)
+        df_1.dropna(inplace=True)
         return df_1
         
     
@@ -1179,10 +1180,11 @@ class TermUtils():
             column_key = column.strip()
             
             if column_key in row:
+                text = "{( )*" + column + "( )*}"
+                
                 if row[column_key] != row[column_key]:
-                    return None
+                    s = re.sub(text, '', s)
                 else:
-                    text = "{( )*" + column + "( )*}"
                     if column not in row.index:
                         column += "_l"
                     s = re.sub(text, str(row[column_key]), s)
@@ -1190,6 +1192,7 @@ class TermUtils():
                 return None
             #print(str(row[column]))
             
+        
         return s
         
     @staticmethod
@@ -1249,11 +1252,9 @@ class TermUtils():
     @staticmethod
     def eval_functions(value, row):
         #p = re.compile('\{(.+)\/?\}')
-        
         value = TermUtils.replace_place_holders(value, row)
         
         if value is not None:
-        
             p = re.compile('(?<=\%eval:).+?(?=\%)')
         
         
@@ -1350,6 +1351,9 @@ class RMLConverter():
     
     def register_function(self, name, fun):
         self.__function_registry.update({name: fun})
+        
+    def unregister_function(self, name):
+        del self.__function_registry[name]
         
     def has_registerd_function(self, name):
         return name in self.__function_registry
