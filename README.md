@@ -1,5 +1,5 @@
 # pyRML
-pyRML is a Pythong based engine for processing RML files. The [RDF Mapping Language](https://rml.io/specs/rml/) (RML) is a mapping language defined to express customized mapping rules from heterogeneous data structures and serializations to the RDF data model. RML is defined as a superset of the W3C-standardized mapping language [R2RML](https://rml.io/specs/rml/#bib-r2rml), aiming to extend its applicability and broaden its scope, adding support for data in other structured formats.
+pyRML is a Python based engine for processing RML files. The [RDF Mapping Language](https://rml.io/specs/rml/) (RML) is a mapping language defined to express customized mapping rules from heterogeneous data structures and serializations to the RDF data model. RML is defined as a superset of the W3C-standardized mapping language [R2RML](https://rml.io/specs/rml/#bib-r2rml), aiming to extend its applicability and broaden its scope, adding support for data in other structured formats.
 ### Installation
 pyRML requires Python 3.
 Once the source code has been downladed it is possible to install the Python package by means of pip. For example:
