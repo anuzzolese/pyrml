@@ -7,7 +7,8 @@ install_requires=[
    'Jinja2>=2.11.3,<=2.11.3',
    'rdflib>=4.2.2,<=4.2.2',
    'Unidecode>=1.1.1,<=1.1.1',
-   'Flask>=1.0,<=1.0'
+   'Flask>=1.0,<=1.0',
+   'jsonpath-ng>=1.5.2,<=1.5.2'
 ]
 
 setup(name='pyrml', version='1.0.0',

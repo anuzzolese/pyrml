@@ -44,7 +44,11 @@ GRAPH_MAP = URIRef(RR + "graphMap")
 
 CSV = URIRef(QL + "CSV")
 
+JSON_PATH = URIRef(QL + "JSONPath")
+
 REFERENCE_FORMULATION = URIRef(RML + "referenceFormulation")
+
+ITERATOR = URIRef(RML + "iterator")
 
 SOURCE = URIRef(RML + "source")
 
