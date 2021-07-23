@@ -4,14 +4,24 @@ parameters: paramvalue ("," paramvalue)*
 
 f_name: NAME
 
-paramvalue: row | number | string | atom | start
+paramvalue: row | number | string | placeholder | atom | start
 
 row: ROW
-number: DEC_NUMBER | HEX_NUMBER | BIN_NUMBER | OCT_NUMBER | FLOAT_NUMBER | IMAG_NUMBER
+number: dec_number | hex_number | bin_number | oct_number | float_number | imag_number
 string: STRING | LONG_STRING
+placeholder: PLACEHOLDER
+
+dec_number: DEC_NUMBER 
+hex_number: HEX_NUMBER
+bin_number: BIN_NUMBER
+oct_number: OCT_NUMBER
+float_number: FLOAT_NUMBER
+imag_number: IMAG_NUMBER
+
 
 STRING : /[ubf]?r?("(?!"").*?(?<!\\)(\\\\)*?"|'(?!'').*?(?<!\\)(\\\\)*?')/i
 LONG_STRING: /[ubf]?r?(""".*?(?<!\\)(\\\\)*?"""|'''.*?(?<!\\)(\\\\)*?''')/is
+PLACEHOLDER: /\{.+\}/i
 
 DEC_NUMBER: /(-)?(0|[1-9]\d*)/i
 HEX_NUMBER.2: /(-)?0x[\da-f]*/i
