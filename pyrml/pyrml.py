@@ -34,6 +34,8 @@ from jinja2 import Environment, FileSystemLoader, Template
 from jsonpath_ng import jsonpath, parse
 import json
 
+from pathlib import Path
+
 import time
 from datetime import timedelta
 
@@ -341,7 +343,6 @@ class LiteralObjectMap(ObjectMap):
     
     def apply_(self, row):
         
-        
         literal = None
         
         if self._reference is not None:
@@ -367,8 +368,7 @@ class LiteralObjectMap(ObjectMap):
         
         return literal
         
-        
-        return self.__convertion(row)
+        #return self.__convertion(row)
         
         
     
@@ -1040,6 +1040,7 @@ class LogicalSource(AbstractMap):
             raise InputFormatNotSupportedError(self.__reference_formulation)
             
         loaded_logical_sources.update({logical_source_uri: df})
+        
         return df 
         
     
@@ -1590,6 +1591,8 @@ class TripleMappings(AbstractMap):
                             pom_representation = df_join.apply(pom.apply_, axis=1)
                             
                             results = pd.concat([df_join["__pyrml_sbj_representation__"], pom_representation], axis=1, sort=False)
+                            #print("ciccio")
+                            #print(results)
                             results.columns = ['0_l', '0_r']
                             
                             
@@ -2170,7 +2173,12 @@ class RMLConverter():
         
         
         if template_vars is not None:
-            file_loader = FileSystemLoader('.')
+            
+            if os.path.isabs(rml_mapping):
+                templates_searchpath = "/"
+            else:
+                templates_searchpath = "."
+            file_loader = FileSystemLoader(templates_searchpath)
             env = Environment(loader=file_loader)
             template = env.get_template(rml_mapping)
             rml_mapping_template = template.render(template_vars)
