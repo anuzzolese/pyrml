@@ -403,13 +403,13 @@ class LiteralObjectMap(ObjectMap):
         
         
 class TermObjectMap(ObjectMap):
-    def __init__(self, reference: Literal = None, template: Literal = None, constant: Union[Literal, URIRef] = None, term_type : URIRef = rml_vocab.LITERAL, language : Literal = None, datatype : URIRef = None, map_id: URIRef = None):
+    def __init__(self, reference: Literal = None, template: Literal = None, constant: Union[Literal, URIRef] = None, term_type : URIRef = rml_vocab.LITERAL, language : 'Language' = None, datatype : URIRef = None, map_id: URIRef = None):
         super().__init__(map_id, reference if reference is not None else template)
         self._reference = reference
         self._template = template
         self._constant = constant
         self._term_type = term_type
-        self._language = language
+        self._language : Language = language
         self._datatype = datatype
         
     def to_rdf(self) -> Graph:
@@ -425,7 +425,8 @@ class TermObjectMap(ObjectMap):
                 g.add((self._id, rml_vocab.TERM_TYPE, self._term_type))
             
         if self._language is not None:
-            g.add((self._id, rml_vocab.LANGUAGE, self._language))
+            lang_g = self._language.to_rdf()
+            g = graph_add_all(g, lang_g)
         elif self._datatype is not None:
             g.add((self._id, rml_vocab.DATATYPE, self._datatype))
         
@@ -461,7 +462,9 @@ class TermObjectMap(ObjectMap):
                 if value != value:
                     term = None
                 elif self._language is not None:
-                    language = TermUtils.eval_functions(self._language.value, row, False)
+                    #language = TermUtils.eval_functions(self._language.value, row, False)
+                    #term = Literal(value, lang=language)
+                    language = self._language.apply_(row)
                     term = Literal(value, lang=language)
                 elif self._datatype is not None:
                     datatype = TermUtils.eval_functions(str(self._datatype), row, False)
@@ -514,7 +517,8 @@ class TermObjectMap(ObjectMap):
                     term = None
                 elif self._language is not None:
                     #language = TermUtils.eval_template(self._language.value, row, False)
-                    term = Literal(value, lang=self._language.value)
+                    #term = Literal(value, lang=self._language.value)
+                    term = Literal(value, lang=self._language.apply_(row))
                 elif self._datatype is not None:
                     #datatype = TermUtils.eval_template(str(self._datatype), row, False)
                     term = Literal(value, datatype=self._datatype)
@@ -534,13 +538,12 @@ class TermObjectMap(ObjectMap):
         term_maps = set()
         query = prepareQuery(
             """
-                SELECT DISTINCT ?p ?reference ?template ?constant ?tt ?language ?datatype
+                SELECT DISTINCT ?p ?reference ?template ?constant ?tt ?datatype
                 WHERE {
                     OPTIONAL{?p rml:reference ?reference}
                     OPTIONAL{?p rr:template ?template}
                     OPTIONAL{?p rr:constant ?constant}
                     OPTIONAL{?p rr:termType ?tt}
-                    OPTIONAL {?p rr:language ?language}
                     OPTIONAL {?p rr:datatype ?datatype}
             }""",
             initNs = {
@@ -554,11 +557,219 @@ class TermObjectMap(ObjectMap):
             qres = g.query(query)
         
         for row in qres:
-            term_maps.add(TermObjectMap(row.reference, row.template, row.constant, row.tt, row.language, row.datatype, row.p))
+            
+            term_object_map = row.p
+            
+            language = LanguageBuilder.build(g, term_object_map)
+            
+            term_maps.add(TermObjectMap(row.reference, row.template, row.constant, row.tt, language, row.datatype, term_object_map))
            
         return term_maps
         
 
+
+
+class Language(AbstractMap):
+    def __init__(self, map_id: URIRef = None, mapped_entity: URIRef = None):
+        super().__init__(map_id, mapped_entity)
+        
+    @abstractclassmethod
+    def to_rdf(self) -> Graph:
+        pass
+    
+    
+    
+    @abstractclassmethod
+    def apply(self, df: DataFrame):
+        pass
+    
+    @abstractclassmethod
+    def apply_(self, row):
+        pass
+        
+    @staticmethod
+    @abstractclassmethod
+    def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
+        pass
+    
+
+class ConstantLanguage(Language):
+    
+    def __init__(self, constant: URIRef, map_id: URIRef = None):
+        super().__init__(map_id, constant)
+        self._constant = constant
+        
+    def to_rdf(self) -> Graph:
+        g = super().to_rdf()
+        
+        g.add((self._id, rml_vocab.LANGUAGE, self._constant))
+            
+        return g
+    
+    
+    def apply(self, df: DataFrame):
+        
+        return self._constant
+    
+    def apply_(self, row):
+        
+        return self._constant
+        
+    @staticmethod
+    def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
+        term_maps = set()
+        query = prepareQuery(
+            """
+                SELECT DISTINCT ?p ?language
+                WHERE {
+                    ?p rr:language ?language
+                }
+            """,
+            initNs = {
+                "rr": rml_vocab.RR,
+                "rml": rml_vocab.RML
+                })
+
+        if parent is not None:
+            qres = g.query(query, initBindings = { "p": parent})
+        else:
+            qres = g.query(query)
+        
+        for row in qres:
+            term_maps.add(ConstantLanguage(row.language, row.p))
+           
+        return term_maps
+    
+
+class LanguageMap(Language):
+    def __init__(self, object_map : Union[BNode, URIRef], reference: Literal = None, template: Literal = None, constant: URIRef = None, map_id: URIRef = None):
+        super().__init__(map_id, reference if reference is not None else template if template is not None else constant)
+        self._reference = reference
+        self._template = template
+        self._constant = constant
+        
+        self._object_map = object_map
+        
+    def to_rdf(self) -> Graph:
+        g = super().to_rdf()
+        
+        g.add(self._object_map, rml_vocab.LANGUAGE_MAP, self._id)
+        if self._reference is not None:
+            g.add((self._id, rml_vocab.REFERENCE, self._reference))
+        elif self._template is not None:
+            g.add((self._id, rml_vocab.TEMPLATE, self._template))
+        elif self._constant is not None:
+            g.add((self._id, rml_vocab.CONSTANT, self._constant))
+            
+        return g
+    
+    
+    def __convertion(self, row):
+        
+        if self._reference is not None:
+            if self._reference.value in row:
+                value = row[self._reference.value]
+            else:
+                value = None
+        elif self._template is not None:
+            
+            value = TermUtils.eval_functions(self._template.value, row, True)
+            
+        elif self._constant is not None:
+            
+            value = self._constant
+        
+        else:
+            value = None
+                
+        
+        return value
+        
+    
+    def apply(self, df: DataFrame):
+        
+        l = lambda x: self.__convertion(x)
+                
+        df_1 = df.apply(l, axis=1)
+        
+        return df_1
+    
+    
+    def apply_(self, row):
+        
+        predicate = None
+        
+        if self._reference is not None:
+            if self._reference.value in row:
+                value = row[self._reference.value]
+            else:
+                value = None
+        elif self._template is not None:
+            
+            #value = TermUtils.eval_template(self._expression, row, True)
+            value = self._expression.eval(row, True)
+            
+        elif self._constant is not None:
+            
+            value = self._constant
+                
+        
+        if value != value:
+            predicate = None
+        else:
+            
+            if isinstance(predicate, URIRef):
+                predicate = value
+            else:
+                predicate = URIRef(value)
+        
+        return predicate
+        
+    @staticmethod
+    def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
+        term_maps = set()
+        query = prepareQuery(
+            """
+                SELECT DISTINCT ?objectMap ?languageMap ?reference ?template ?constant
+                WHERE {
+                    ?objectMap rml:languageMap ?languageMap
+                    OPTIONAL{?languageMap rml:reference ?reference}
+                    OPTIONAL{?languageMap rr:template ?template}
+                    OPTIONAL{?languageMap rr:constant ?constant}
+            }""",
+            initNs = {
+                "rr": rml_vocab.RR,
+                "rml": rml_vocab.RML
+                })
+
+        if parent is not None:
+            qres = g.query(query, initBindings = { "objectMap": parent})
+        else:
+            qres = g.query(query)
+        
+        for row in qres:
+            term_maps.add(LanguageMap(row.objectMap, row.reference, row.template, row.constant, row.languageMap))
+           
+        return term_maps
+    
+class LanguageBuilder():
+    
+    @staticmethod
+    def build(g: Graph, parent: Union[URIRef, BNode]) -> Set[Language]:
+        
+        ret = None
+        if (parent, rml_vocab.LANGUAGE, None) in g:
+            ret = ConstantLanguage.from_rdf(g, parent)
+        elif (parent, rml_vocab.LANGUAGE_MAP, None) in g:
+            ret = PredicateMap.from_rdf(g, parent)
+        else:
+            return None
+        
+        if ret is None or len(ret) == 0:
+            return None
+        else:
+            return ret.pop()
+    
 class Predicate(AbstractMap):
     def __init__(self, map_id: URIRef = None, mapped_entity: URIRef = None):
         super().__init__(map_id, mapped_entity)
@@ -2124,6 +2335,7 @@ class TermUtils():
     
 class RMLParser():
     
+    @staticmethod
     def parse(source, format="ttl"):
         g = Graph('IOMemory')
         g.parse(source, format=format)

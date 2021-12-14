@@ -30,6 +30,8 @@ REFERENCE = URIRef(RML + "reference")
 
 LANGUAGE = URIRef(RR + "language")
 
+LANGUAGE_MAP = URIRef(RML + "languageMap")
+
 DATATYPE = URIRef(RR + "datatype")
 
 PARENT_TRIPLES_MAP = URIRef(RR + "parentTriplesMap")
