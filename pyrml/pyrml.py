@@ -1047,7 +1047,7 @@ class PredicateObjectMap(AbstractMap):
         
         query = prepareQuery(
             """
-                SELECT DISTINCT ?pom ?predicate ?om
+                SELECT DISTINCT ?pom ?om
                 WHERE {
                     ?pom rr:objectMap ?om
             }""", 
@@ -1074,7 +1074,7 @@ class PredicateObjectMap(AbstractMap):
                     
                      
             term_maps.add(pom)
-           
+            
         return term_maps
     
     @staticmethod
@@ -1779,34 +1779,41 @@ class TripleMappings(AbstractMap):
                         object_map = pom.get_object_map()
                         if isinstance(object_map, ReferencingObjectMap) and object_map.get_join_conditions():
                             
+                            
                             df_left = df
                             df_left["__pyrml_sbj_representation__"] = sbj_representation
                             parent_triple_mappings = object_map.get_parent_triples_map()
                             
                             df_right = parent_triple_mappings.get_logical_source().apply()
-                            pandas_condition = parent_triple_mappings.get_condition()
-                            if pandas_condition:
-                                df_right = df_right[eval(pandas_condition)]
+                            
+                            
+                            if not df_left.empty and not df_right.empty:
+                            
+                                pandas_condition = parent_triple_mappings.get_condition()
+                                if pandas_condition:
+                                    df_right = df_right[eval(pandas_condition)]
+                                    
+                                join_conditions = object_map.get_join_conditions()
                                 
-                            join_conditions = object_map.get_join_conditions()
-                            
-                            left_ons = []
-                            right_ons = []
-                            
-                            for join_condition in join_conditions:
-                                left_ons.append(join_condition.get_child().value)
-                                right_ons.append(join_condition.get_parent().value)
-                            
-                            df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
-                            
-                            pom_representation = df_join.apply(pom.apply_, axis=1)
-                            
-                            results = pd.concat([df_join["__pyrml_sbj_representation__"], pom_representation], axis=1, sort=False)
-                            #print("ciccio")
-                            #print(results)
-                            results.columns = ['0_l', '0_r']
-                            
-                            
+                                left_ons = []
+                                right_ons = []
+                                
+                                for join_condition in join_conditions:
+                                    left_ons.append(join_condition.get_child().value)
+                                    right_ons.append(join_condition.get_parent().value)
+                                
+                                df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
+                                
+                                pom_representation = df_join.apply(pom.apply_, axis=1)
+                                
+                                results = pd.concat([df_join["__pyrml_sbj_representation__"], pom_representation], axis=1, sort=False)
+                                #print("ciccio")
+                                #print(results)
+                                
+                                results.columns = ['0_l', '0_r']
+                            else:
+                                results = pd.DataFrame()
+                                
                         else:
                             
                             pom_representation = None 
@@ -1826,27 +1833,27 @@ class TripleMappings(AbstractMap):
                     except Exception as e:
                         raise e
                     
+                    if not results.empty:
+                        # We remove NaN values so that we can generate valid RDF triples.
+                        results.dropna(inplace=True)
+                        results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'], x['0_r'][0], x['0_r'][1]), axis=1)
+                        
+                        for triple in results.values:
                     
-                    # We remove NaN values so that we can generate valid RDF triples.
-                    results.dropna(inplace=True)
-                    results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'], x['0_r'][0], x['0_r'][1]), axis=1)
-                    
-                    for triple in results.values:
-                
-                        try:
-                            g.add(triple)
-                            
-                            _classes = self.__subject_map.get_class()
-                            if _classes:
+                            try:
+                                g.add(triple)
                                 
-                                for _class in _classes:
-                                    if _class:
-                                        g.add((triple[0], RDF.type, _class))
-                                
-                        except:
-                            if self._id == URIRef('https://dati.isprambiente.it/ld/rml/sensors_map.ttl#SensorModelData'):
-                                print(triple)
-                            pass
+                                _classes = self.__subject_map.get_class()
+                                if _classes:
+                                    
+                                    for _class in _classes:
+                                        if _class:
+                                            g.add((triple[0], RDF.type, _class))
+                                    
+                            except:
+                                if self._id == URIRef('https://dati.isprambiente.it/ld/rml/sensors_map.ttl#SensorModelData'):
+                                    print(triple)
+                                pass
                     
                         
             elif self.__subject_map.get_class() is not None:
@@ -1960,10 +1967,13 @@ class TripleMappings(AbstractMap):
             else:
                 subject_map = SubjectMap.from_rdf(g, row.tm).pop()
         
-        predicate_object_map = TripleMappings.__build_predicate_object_map(g, row)
+        predicate_object_maps = TripleMappings.__build_predicate_object_map(g, row)
         
-        if predicate_object_map is not None:
-            pom_dict = { predicate_object_map.get_id(): predicate_object_map }
+        if predicate_object_maps is not None:
+            
+            pom_dict = dict()
+            for predicate_object_map in predicate_object_maps:
+                pom_dict.update({ predicate_object_map.get_id(): predicate_object_map })
         else:
             pom_dict = None
         return TripleMappings(source, subject_map, pom_dict, row.tm, row.cond)
@@ -1982,8 +1992,8 @@ class TripleMappings(AbstractMap):
                     mappings_dict.add(predicate_object_map)
             else:
                 pom = PredicateObjectMap.from_rdf(g, row.pom)
-                if len(pom) > 0:
-                    predicate_object_map = pom.pop()
+                #if len(pom) > 0:
+                #    predicate_object_map = pom.pop()
         return predicate_object_map
         
             
