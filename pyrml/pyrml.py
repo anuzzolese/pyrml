@@ -518,7 +518,9 @@ class TermObjectMap(ObjectMap):
                 elif self._language is not None:
                     #language = TermUtils.eval_template(self._language.value, row, False)
                     #term = Literal(value, lang=self._language.value)
-                    term = Literal(value, lang=self._language.apply_(row))
+                    language_tag = self._language.apply_(row)
+                    print(type(language_tag))
+                    term = Literal(value, lang=language_tag)
                 elif self._datatype is not None:
                     #datatype = TermUtils.eval_template(str(self._datatype), row, False)
                     term = Literal(value, datatype=self._datatype)
