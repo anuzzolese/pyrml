@@ -1,7 +1,7 @@
 __author__ = "Andrea Giovanni Nuzzolese"
 __email__ = "andrea.nuzzolese@cnr.it"
 __license__ = "Apache 2"
-__version__ = "0.2"
+__version__ = "0.2.9"
 __status__ = "Alpha"
 
 from abc import ABC, abstractclassmethod

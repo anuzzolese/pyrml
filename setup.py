@@ -11,5 +11,5 @@ install_requires=[
    'jsonpath-ng>=1.5.2,<=1.5.2'
 ]
 
-setup(name='pyrml', version='1.0.0',
+setup(name='pyrml', version='0.2.9',
     packages=find_packages(), package_data={'pyrml': ['grammar.lark']}, install_requires=install_requires)
