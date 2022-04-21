@@ -1,0 +1,171 @@
+@prefix : <http://www.example.org/ns/r2rml#> .
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix rml: <http://semweb.mmlab.be/ns/rml#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix ql: <http://semweb.mmlab.be/ns/ql#> .
+@prefix ex: <http://ex.com/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix cpv: <https://w3id.org/italia/onto/CPV/> .
+@prefix clv: <https://w3id.org/italia/onto/CLV/> .
+
+
+:Ontology
+  rml:logicalSource :ArtistSource;
+  rr:subjectMap [
+    rr:template "https://w3id.org/test/my-ontology/" ;
+    rr:class owl:Ontology
+  ];
+
+  rr:predicateObjectMap [
+    rr:predicate rdfs:label ;
+    rr:objectMap [
+       rr:template "Exercise on knowledge graphs"
+    ]
+  ] .
+
+
+:IDTriplesMap 
+    rml:logicalSource :ArtistSource ;
+    rr:subjectMap [
+        rr:template "http://ex.com/id";
+        rr:class owl:DatatypeProperty
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rr:constant "Identifier"
+        ]
+    ] .
+    
+:PersonClassTriplesMap 
+    rml:logicalSource :ArtistSource ;
+    rr:subjectMap [
+        rr:template "https://w3id.org/italia/onto/CPV/Person";
+        rr:class owl:Class
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rr:constant "Person"
+        ]
+    ] .
+    
+:PlaceClassTriplesMap 
+    rml:logicalSource :ArtistSource ;
+    rr:subjectMap [
+        rr:template "https://w3id.org/italia/onto/CLV/Place";
+        rr:class owl:Class
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rr:constant "Place"
+        ]
+    ] .
+    
+:BirthPlaceClassTriplesMap 
+    rml:logicalSource :ArtistSource ;
+    rr:subjectMap [
+        rr:template "https://w3id.org/italia/onto/CLV/hasBirthPlace";
+        rr:class owl:ObjectProperty
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rr:constant "has birth place"
+        ]
+    ] .
+    
+:DeathPlaceClassTriplesMap 
+    rml:logicalSource :ArtistSource ;
+    rr:subjectMap [
+        rr:template "https://w3id.org/italia/onto/CLV/hasDeathPlace";
+        rr:class owl:ObjectProperty
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rr:constant "has death place"
+        ]
+    ] .
+
+:ArtistTriplesMap 
+    rml:logicalSource :ArtistSource ;
+    rr:subjectMap [
+        rr:template "http://stlab.istc.cnr.it/{ID}";
+#        rr:class cpv:Person
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdf:type;
+        rr:objectMap [
+            rr:constant cpv:Person
+        ]
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rml:reference "NAME"
+        ]
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate ex:id;
+        rr:objectMap [
+            rr:template "{ID}: {NAME}"
+        ]
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate clv:hasBirthPlace;
+        rr:objectMap [
+            rr:parentTriplesMap :BirthPlaceTriplesMap ;
+            rr:joinCondition [ 
+                rr:child "BIRTH_PLACE" ;
+                rr:parent "CODE" 
+            ]
+        ]
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate clv:hasDeathPlace;
+        rr:objectMap [
+            rr:parentTriplesMap :BirthPlaceTriplesMap ;
+            rr:joinCondition [ 
+                rr:child "DEATH_PLACE" ;
+                rr:parent "CODE" 
+            ]
+        ]
+    ] .
+
+:BirthPlaceTriplesMap 
+    rml:logicalSource :PlaceSource ;
+    rr:subjectMap [
+        rr:template "http://stlab.istc.cnr.it/{CODE}";
+        rr:class clv:Place
+    ] ;
+    
+    rr:predicateObjectMap [
+        rr:predicate rdfs:label;
+        rr:objectMap [
+            rml:reference "PLACE"
+        ]
+    ] .
+
+
+:ArtistSource rml:source "./examples/artists/Artist.csv" ;
+    rml:referenceFormulation ql:CSV ;
+    rml:iterator ql:row .
+
+:PlaceSource 
+    rml:source "./examples/artists/Place.csv" ;
+    rml:referenceFormulation ql:CSV ;
+    rml:iterator ql:row .

@@ -10,7 +10,7 @@ import re, os, unidecode
 from typing import Dict, Union, Set, List
 
 from pandas.core.frame import DataFrame
-from rdflib import URIRef, Graph, plugin
+from rdflib import URIRef, Graph, ConjunctiveGraph, Dataset, plugin
 from rdflib.query import Processor, Result
 from rdflib.namespace import RDF
 from rdflib.plugins.sparql.processor import prepareQuery, SPARQLProcessor, SPARQLResult
@@ -1297,10 +1297,26 @@ class LogicalSource(AbstractMap):
 
 class GraphMap(AbstractMap):
     
-    def __init__(self, mapped_entity: Node, map_id: URIRef = None):
+    def __init__(self, mapped_entity: Node, mode: str, map_id: URIRef = None):
         super().__init__(map_id, mapped_entity)
+        self.__mode = mode
         
+    def apply_(self, row):
     
+        mode = self.__mode.value
+        if mode == 'reference':
+            if self._mapped_entity in row:
+                value = row[self._mapped_entity]
+            else:
+                value = None
+        elif mode == 'template':
+            value = TermUtils.eval_functions(self._mapped_entity, row, True)
+            
+        elif mode == 'constant':
+            value = self._mapped_entity
+        
+        return URIRef(value)
+
     def to_rdf(self):
         g = Graph()
         
@@ -1317,19 +1333,30 @@ class GraphMap(AbstractMap):
         mappings_dict = RMLConverter.get_instance().get_mapping_dict()
             
         sparql = """
-            SELECT DISTINCT ?gm ?g
+            SELECT DISTINCT ?gm ?g ?mode
             WHERE {
                 { ?p rr:graphMap ?gm . 
-                  ?gm rr:constant ?g }
+                  ?gm rr:constant ?g
+                  BIND("constant" AS ?mode)
+                }
                 UNION
-                { ?p rr:graph ?g }
+                { ?p rr:graph ?g
+                  BIND("constant" AS ?mode)
+                }
                 UNION
                 { ?p rr:graphMap ?gm . 
-                  ?gm rr:template ?g }                
+                  ?gm rr:template ?g
+                  BIND("template" AS ?mode)
+                }
+                UNION
+                { ?p rr:graphMap ?gm .
+                  ?gm rml:reference ?g
+                  BIND("reference" AS ?mode)
+                }
             }"""
         
         query = prepareQuery(sparql, 
-                initNs = { "rr": rml_vocab.RR })
+                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML })
         
         if parent is not None:
             qres = g.query(query, initBindings = { "p": parent})
@@ -1343,12 +1370,12 @@ class GraphMap(AbstractMap):
                     if row.gm in mappings_dict:
                         graph_map = mappings_dict.get(row.gm)
                     else:
-                        graph_map = GraphMap(row.g, row.gm)
+                        graph_map = GraphMap(row.g, row.mode, row.gm)
                         mappings_dict.add(graph_map)
                 else:
-                    graph_map = GraphMap(row.g, row.gm)
+                    graph_map = GraphMap(row.g, row.mode, row.gm)
             elif row.g is not None:
-                graph_map = GraphMap(mapped_entity=row.g)
+                graph_map = GraphMap(mapped_entity=row.g, mode=mode)
                 
             term_maps.add(graph_map)
            
@@ -1438,8 +1465,14 @@ class SubjectMap(AbstractMap):
             term = self._expression.eval(row, True)
         elif self.__term_type == Literal("reference"):
             term = URIRef(row[self._mapped_entity.value])
+        
+        
+        if self.__graph_map:
+            out = (self.__graph_map.apply_(row), term)
+        else:
+            out = (None, term)
             
-        return term
+        return out
         
     
     @staticmethod
@@ -1447,7 +1480,7 @@ class SubjectMap(AbstractMap):
         mappings_dict = RMLConverter.get_instance().get_mapping_dict()
             
         sparql = """
-            SELECT DISTINCT ?sm ?map ?termType ?type ?gm ?g
+            SELECT DISTINCT ?sm ?map ?termType ?type ?gm
             WHERE {
                 ?p rr:subjectMap ?sm .
                 { ?sm rr:template ?map
@@ -1465,7 +1498,7 @@ class SubjectMap(AbstractMap):
                 OPTIONAL {
                     { ?sm rr:graphMap ?gm }
                     UNION
-                    { ?sm rr:graph ?g }
+                    { ?sm rr:graph ?gm }
                 }
             }"""
         
@@ -1490,7 +1523,7 @@ class SubjectMap(AbstractMap):
                     subject_map = subject_maps[row.sm.n3()]
                     subject_map.__class.add(row.type)
                 else:
-                    subject_map = SubjectMap.__create(row)
+                    subject_map = SubjectMap.__create(g, row)
                     subject_maps.update({row.sm.n3(): subject_map})
                     if isinstance(row.sm, URIRef):
                         mappings_dict.add(subject_map)
@@ -1502,11 +1535,11 @@ class SubjectMap(AbstractMap):
         return set(subject_maps.values())
     
     @staticmethod
-    def __create(row):
+    def __create(graph: Graph, row):
         
         graph_map = None
-        if row.gm is not None or row.g is not None:
-            graph_map = GraphMap.from_rdf(row.g, row.sm).pop()
+        if row.gm:
+            graph_map = GraphMap.from_rdf(graph, row.sm).pop()
                 
         return SubjectMap(row.map, row.termType, {row.type}, graph_map, row.sm)
     
@@ -1595,7 +1628,7 @@ class TripleMappings(AbstractMap):
     def apply(self):
         start_time = time.time()
 
-        g = Graph()
+        g = ConjunctiveGraph()
         
         df = self.__logical_source.apply()
         
@@ -1608,7 +1641,7 @@ class TripleMappings(AbstractMap):
         sbj_representation = df.apply(self.__subject_map.apply_)
         elapsed_time_secs = time.time() - start_time
         msg = "Subject Map: %s secs" % elapsed_time_secs
-        print(msg)  
+        print(msg)
         
         if sbj_representation is not None and not sbj_representation.empty:
                                                              
@@ -1662,7 +1695,8 @@ class TripleMappings(AbstractMap):
                                 '''
                                 
                                 
-                                results = pd.concat([sbj_representation[0], pom_representation], axis=1, sort=False)
+                                #results = pd.concat([sbj_representation[0], pom_representation], axis=1, sort=False)
+                                results = pd.concat([sbj_representation, pom_representation], axis=1, sort=False)
                                 results.columns = ['0_l', '0_r']
                                 
                                 '''
@@ -1693,18 +1727,27 @@ class TripleMappings(AbstractMap):
                         except Exception as e:
                             raise e
                         
-                        results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'], x['0_r'][0], x['0_r'][1]), axis=1)
-                        for triple in results.values:
+                        graph_map = self.__subject_map.get_graph_map()
+                        
+                        results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'][0], x['0_l'][1], x['0_r'][0], x['0_r'][1]), axis=1)
+                        for quad in results.values:
                     
                             try:
                                 #g.add((v['0_l'], v['0_r'][0], v['0_r'][1]))
                                 
-                                g.add(triple)
+                                if not quad[0]:
+                                    g.add((quad[1], quad[2], quad[3]))
+                                else:
+                                    g.add(quad)
+                                    #print(len(quad))
                                 
                                 if self.__subject_map.get_class() is not None:
                                     for type in self.__subject_map.get_class():
-                                        g.add((triple[0], RDF.type, type))
-                            
+                                        if not quad[0]:
+                                            g.add((quad[1], RDF.type, type))
+                                        else:
+                                            g.add((quad[0], quad[1], RDF.type, type))
+                                
                             except:
                                 pass
                         
@@ -1753,7 +1796,7 @@ class TripleMappings(AbstractMap):
         start_time = time.time()
         msg = "\t TripleMapping %s" % self._id
         print(msg)
-        g = Graph()
+        g = ConjunctiveGraph()
         
         df = self.__logical_source.apply()
         
@@ -1816,7 +1859,7 @@ class TripleMappings(AbstractMap):
                             
                         else:
                             
-                            pom_representation = None 
+                            pom_representation = None
                             if isinstance(object_map, ReferencingObjectMap):
                                 pandas_condition = object_map.get_parent_triples_map().get_condition()
                                 if pandas_condition:
@@ -1837,19 +1880,24 @@ class TripleMappings(AbstractMap):
                     
                     # We remove NaN values so that we can generate valid RDF triples.
                     results.dropna(inplace=True)
-                    results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'], x['0_r'][0], x['0_r'][1]), axis=1)
+                    results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'][0], x['0_l'][1], x['0_r'][0], x['0_r'][1]), axis=1)
                     
-                    for triple in results.values:
+                    for quad in results.values:
                 
                         try:
-                            g.add(triple)
+                            if quad[0]:
+                                g.add((quad[1], quad[2], quad[3], quad[0]))
+                            else:
+                                g.add((quad[1], quad[2], quad[3]))
                             
                             _classes = self.__subject_map.get_class()
                             if _classes:
-                                
                                 for _class in _classes:
                                     if _class:
-                                        g.add((triple[0], RDF.type, _class))
+                                        if quad[0]:
+                                            g.add((quad[1], RDF.type, _class, quad[0]))
+                                        else:
+                                            g.add((quad[1], RDF.type, _class))
                                 
                         except:
                             pass
@@ -1877,7 +1925,7 @@ class TripleMappings(AbstractMap):
         #msg = "\t Triples Mapping %s: %s secs" % (self._id, elapsed_time_secs)
         msg = "\t\t done in %s secs" % (elapsed_time_secs)
         print(msg)  
-            
+        
         return g
         
         
@@ -2428,7 +2476,7 @@ class RMLConverter():
         
         triple_mappings = RMLParser.parse(rml_mapping)
         
-        g = Graph()
+        g = ConjunctiveGraph()
         
         
         if multiprocessed:
@@ -2458,9 +2506,24 @@ class RMLConverter():
         
             '''
             
+            count = 0
             for tm in triple_mappings:
-                triples = tm.apply_()
-                g = graph_add_all(g, triples)
+                #triples = tm.apply_()
+                #g = graph_add_all(g, triples)
+                tmp = tm.apply_()
+                
+                with open(f'test_{count}.nq', 'w') as test:
+                    #test.write(tmp.serialize(format='nquads').decode())
+                    test.write(tmp.serialize(format='nquads'))
+                
+                count += 1
+                
+                #g.addN(tmp.quads())
+                #for (s,p,o,c) in tmp.quads():
+                #    g.add((s,p,o,c))
+                
+                g.addN(tmp.quads())
+        
         return g
     
     def get_mapping_dict(self):

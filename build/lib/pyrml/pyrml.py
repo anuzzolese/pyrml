@@ -26,6 +26,8 @@ import multiprocessing
 from multiprocessing import  Pool
 import logging
 
+import hashlib
+
 from lark import Lark
 from lark.visitors import Transformer
 
@@ -199,7 +201,7 @@ class AbstractMap(TermMap):
 class ObjectMap(AbstractMap):
     
     def to_rdf(self):
-        g = Graph('IOMemory')
+        g = Graph()
         g.add((self._id, RDF.type, rml_vocab.OBJECT_MAP_CLASS))
         return g
 
@@ -929,6 +931,7 @@ class PredicateMap(Predicate):
             if isinstance(predicate, URIRef):
                 predicate = value
             else:
+                print(f'Lalala {value}')
                 predicate = URIRef(value)
         
         return predicate
@@ -982,7 +985,10 @@ class PredicateBuilder():
 
 class PredicateObjectMap(AbstractMap):
     def __init__(self, predicate: Predicate, object_map: ObjectMap, map_id: URIRef = None):
-        super().__init__(map_id, predicate)
+        
+        id = BNode(TermUtils.digest(f'{map_id}{predicate.get_id()}{object_map.get_id()}'))
+        
+        super().__init__(id, predicate)
         self._predicate = predicate
         self.__object_map = object_map
         
@@ -993,7 +999,7 @@ class PredicateObjectMap(AbstractMap):
         return self.__object_map
     
     def to_rdf(self) -> Graph:
-        g = Graph('IOMemory')
+        g = Graph()
         g.add((self._id, RDF.type, rml_vocab.PREDICATE_OBJECT_MAP_CLASS))
         g = graph_add_all(g, self._predicate.to_rdf())
         
@@ -1143,7 +1149,7 @@ class Join(AbstractMap):
         return self.__parent
     
     def to_rdf(self) -> Graph:
-        g = Graph('IOMemory')
+        g = Graph()
         
         if self.__child is not None and self.__parent is not None:
             join = self._id
@@ -1208,7 +1214,7 @@ class LogicalSource(AbstractMap):
         return self.__separator
     
     def to_rdf(self):
-        g = Graph('IOMemory')
+        g = Graph()
         g.add((self._id, RDF.type, rml_vocab.BASE_SOURCE))
         g.add((self._id, rml_vocab.SOURCE, self.get_source()))
         g.add((self._id, rml_vocab.REFERENCE_FORMULATION, self.__reference_formulation))
@@ -1297,7 +1303,7 @@ class GraphMap(AbstractMap):
         
     
     def to_rdf(self):
-        g = Graph('IOMemory')
+        g = Graph()
         
         if isinstance(self._mapped_entity, Literal):
             g.add((self._id, rml_vocab.TEMPLATE, self._mapped_entity))
@@ -1363,7 +1369,7 @@ class SubjectMap(AbstractMap):
         return self.__graph_map
                 
     def to_rdf(self):
-        g = Graph('IOMemory')
+        g = Graph()
         subject_map = self._id
         
         '''
@@ -1510,7 +1516,7 @@ class TripleMappings(AbstractMap):
     def __init__(self,
                  logical_source: LogicalSource, 
                  subject_map: SubjectMap,
-                 predicate_object_maps: Dict[Identifier, ObjectMap] = None, 
+                 predicate_object_maps: Dict[Union[URIRef, BNode], ObjectMap] = None, 
                  iri: URIRef = None,
                  condition: str = None):
         super().__init__(iri, logical_source.get_id())
@@ -1525,10 +1531,10 @@ class TripleMappings(AbstractMap):
     def get_subject_map(self) -> SubjectMap:
         return self.__subject_map
     
-    def get_predicate_object_maps(self) -> Dict[Identifier, ObjectMap]:
+    def get_predicate_object_maps(self) -> List[ObjectMap]:
         return self.__predicate_object_maps
     
-    def set_predicate_object_maps(self, poms: Dict[Identifier, ObjectMap]):
+    def set_predicate_object_maps(self, poms: List[ObjectMap]):
         self.__predicate_object_maps = poms
     
     def get_condition(self):
@@ -1544,7 +1550,7 @@ class TripleMappings(AbstractMap):
         return self.__predicate_object_maps.get(identifier)
     
     def to_rdf(self) -> Graph:
-        g = Graph('IOMemory')
+        g = Graph()
         g.add((self._id, RDF.type, rml_vocab.TRIPLES_MAP))
         g.add((self._id, rml_vocab.LOGICAL_SOURCE, self.__logical_source.get_id()))
         g.add((self._id, rml_vocab.SUBJECT_MAP, self.__subject_map.get_id()))
@@ -1590,7 +1596,7 @@ class TripleMappings(AbstractMap):
     def apply(self):
         start_time = time.time()
 
-        g = Graph('IOMemory')
+        g = Graph()
         
         df = self.__logical_source.apply()
         
@@ -1728,7 +1734,7 @@ class TripleMappings(AbstractMap):
     def apply_subject_map(self):
         start_time = time.time()
 
-        g = Graph('IOMemory')
+        g = Graph()
         
         df = self.__logical_source.apply()
         
@@ -1748,7 +1754,7 @@ class TripleMappings(AbstractMap):
         start_time = time.time()
         msg = "\t TripleMapping %s" % self._id
         print(msg)
-        g = Graph('IOMemory')
+        g = Graph()
         
         df = self.__logical_source.apply()
         
@@ -1779,41 +1785,36 @@ class TripleMappings(AbstractMap):
                         object_map = pom.get_object_map()
                         if isinstance(object_map, ReferencingObjectMap) and object_map.get_join_conditions():
                             
-                            
                             df_left = df
                             df_left["__pyrml_sbj_representation__"] = sbj_representation
                             parent_triple_mappings = object_map.get_parent_triples_map()
                             
                             df_right = parent_triple_mappings.get_logical_source().apply()
+                            pandas_condition = parent_triple_mappings.get_condition()
+                            if pandas_condition:
+                                df_right = df_right[eval(pandas_condition)]
+                                
+                            join_conditions = object_map.get_join_conditions()
+                            
+                            left_ons = []
+                            right_ons = []
+                            
+                            for join_condition in join_conditions:
+                                left_ons.append(join_condition.get_child().value)
+                                right_ons.append(join_condition.get_parent().value)
                             
                             
                             if not df_left.empty and not df_right.empty:
-                            
-                                pandas_condition = parent_triple_mappings.get_condition()
-                                if pandas_condition:
-                                    df_right = df_right[eval(pandas_condition)]
-                                    
-                                join_conditions = object_map.get_join_conditions()
-                                
-                                left_ons = []
-                                right_ons = []
-                                
-                                for join_condition in join_conditions:
-                                    left_ons.append(join_condition.get_child().value)
-                                    right_ons.append(join_condition.get_parent().value)
-                                
                                 df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
-                                
+                            
                                 pom_representation = df_join.apply(pom.apply_, axis=1)
                                 
                                 results = pd.concat([df_join["__pyrml_sbj_representation__"], pom_representation], axis=1, sort=False)
-                                #print("ciccio")
-                                #print(results)
-                                
                                 results.columns = ['0_l', '0_r']
                             else:
-                                results = pd.DataFrame()
-                                
+                                results = pd.DataFrame(columns=['0_l', '0_r'])
+                            
+                            
                         else:
                             
                             pom_representation = None 
@@ -1824,6 +1825,7 @@ class TripleMappings(AbstractMap):
                                     pom_representation = df_pom.apply(pom.apply_, axis=1)
                             
                             if pom_representation is None:
+                                
                                 pom_representation = df.apply(pom.apply_, axis=1)
                     
                             if pom_representation is not None and not pom_representation.empty:
@@ -1833,27 +1835,25 @@ class TripleMappings(AbstractMap):
                     except Exception as e:
                         raise e
                     
-                    if not results.empty:
-                        # We remove NaN values so that we can generate valid RDF triples.
-                        results.dropna(inplace=True)
-                        results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'], x['0_r'][0], x['0_r'][1]), axis=1)
-                        
-                        for triple in results.values:
                     
-                            try:
-                                g.add(triple)
+                    # We remove NaN values so that we can generate valid RDF triples.
+                    results.dropna(inplace=True)
+                    results = results[['0_l', '0_r']].apply(lambda x: (x['0_l'], x['0_r'][0], x['0_r'][1]), axis=1)
+                    
+                    for triple in results.values:
+                
+                        try:
+                            g.add(triple)
+                            
+                            _classes = self.__subject_map.get_class()
+                            if _classes:
                                 
-                                _classes = self.__subject_map.get_class()
-                                if _classes:
-                                    
-                                    for _class in _classes:
-                                        if _class:
-                                            g.add((triple[0], RDF.type, _class))
-                                    
-                            except:
-                                if self._id == URIRef('https://dati.isprambiente.it/ld/rml/sensors_map.ttl#SensorModelData'):
-                                    print(triple)
-                                pass
+                                for _class in _classes:
+                                    if _class:
+                                        g.add((triple[0], RDF.type, _class))
+                                
+                        except:
+                            pass
                     
                         
             elif self.__subject_map.get_class() is not None:
@@ -1923,12 +1923,18 @@ class TripleMappings(AbstractMap):
                     tm = mappings_dict.get(row.tm)
                     
                     if tm is not None:
-                        pom = TripleMappings.__build_predicate_object_map(g, row)
-                        poms = tm.get_predicate_object_maps()
-                        if pom is not None and poms is None:
-                            tm.set_predicate_object_maps({ pom.get_id(): pom })
-                        elif pom is not None and pom.get_id() not in poms:
-                            poms.update({ pom.get_id(): pom })
+                        pom_set = TripleMappings.__build_predicate_object_map(g, row)
+                        
+                        if pom_set:
+                            
+                            available_poms = tm.get_predicate_object_maps()
+                            if not available_poms:
+                                available_poms = dict()
+                                tm.set_predicate_object_maps(available_poms)
+                            
+                            for pom in pom_set:
+                                if pom:
+                                    available_poms.update({ pom.get_id(): pom })
                                             
                 else:
                     tm = TripleMappings.__build(g, row)
@@ -1969,11 +1975,16 @@ class TripleMappings(AbstractMap):
         
         predicate_object_maps = TripleMappings.__build_predicate_object_map(g, row)
         
-        if predicate_object_maps is not None:
-            
+        
+        if predicate_object_maps:
             pom_dict = dict()
             for predicate_object_map in predicate_object_maps:
-                pom_dict.update({ predicate_object_map.get_id(): predicate_object_map })
+                if predicate_object_map:
+                    '''
+                    if predicate_object_map.get_id() in pom_dict:
+                        pom = pom_dict[predicate_object_map.get_id()]
+                    '''
+                    pom_dict.update({ predicate_object_map.get_id(): predicate_object_map })
         else:
             pom_dict = None
         return TripleMappings(source, subject_map, pom_dict, row.tm, row.cond)
@@ -1988,12 +1999,17 @@ class TripleMappings(AbstractMap):
                 if row.pom in mappings_dict:
                     predicate_object_map = mappings_dict.get(row.pom)
                 else:
-                    predicate_object_map = PredicateObjectMap.from_rdf(g, row.pom).pop()
-                    mappings_dict.add(predicate_object_map)
+                    predicate_object_map = PredicateObjectMap.from_rdf(g, row.pom)
+                    for pom in predicate_object_map:
+                        mappings_dict.add(pom)
             else:
+                '''
                 pom = PredicateObjectMap.from_rdf(g, row.pom)
-                #if len(pom) > 0:
-                #    predicate_object_map = pom.pop()
+                if len(pom) > 0:
+                    predicate_object_map = pom.pop()
+                '''
+                predicate_object_map = PredicateObjectMap.from_rdf(g, row.pom)
+                    
         return predicate_object_map
         
             
@@ -2158,6 +2174,11 @@ class MappingsDict():
                 
                 
 class TermUtils():
+    
+    @staticmethod
+    def digest(s):
+        hash = hashlib.md5(s.encode())
+        return hash.hexdigest()
     
     @staticmethod
     def urify(entity, row):
@@ -2347,13 +2368,13 @@ class RMLParser():
     
     @staticmethod
     def parse(source, format="ttl"):
-        g = Graph('IOMemory')
+        g = Graph()
         g.parse(source, format=format)
         
         return TripleMappings.from_rdf(g)
         
         '''
-        g_2 = Graph('IOMemory')
+        g_2 = Graph()
         for tm in triple_mappings:
             g_2 += tm.apply()
             g1 = tm.to_rdf()
@@ -2408,7 +2429,7 @@ class RMLConverter():
         
         triple_mappings = RMLParser.parse(rml_mapping)
         
-        g = Graph('IOMemory')
+        g = Graph()
         
         
         if multiprocessed:
