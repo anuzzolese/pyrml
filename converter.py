@@ -43,10 +43,10 @@ class PyrmlCMDTool:
                 os.makedirs(dest_folder)
                 
             with codecs.open(self.__args.output, 'w', encoding='utf8') as out_file:
-                out_file.write(g.serialize(format=format).decode('utf-8'))
+                out_file.write(g.serialize(format=format))
                 
         else:
-            logging.info(g.serialize(format=format).decode('utf-8'))
+            logging.info(g.serialize(format=format))
             
               
 def get_id(string):
