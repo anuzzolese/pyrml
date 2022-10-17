@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from pyrml import RMLConverter
+from pyrml.functions import *
 import logging
 import os, codecs
 
@@ -23,11 +24,12 @@ class PyrmlCMDTool:
         logging.basicConfig(level=logging.DEBUG)
         
     def do_map(self):
-        rml_converter = RMLConverter()
+        rml_converter = RMLConverter.get_instance()
         #Inizio aggiunta per recogito
-        rml_converter.register_function("get_id", get_id)
-        rml_converter.register_function("get_uri", get_uri)
+        #rml_converter.register_function("get_id", get_id)
+        #rml_converter.register_function("get_uri", get_uri)
         #Fine aggiunta per recogito
+        
         
         g = rml_converter.convert(self.__args.input, self.__args.m)
         

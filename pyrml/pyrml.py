@@ -14,7 +14,7 @@ from rdflib import URIRef, Graph, ConjunctiveGraph, Dataset, plugin
 from rdflib.query import Processor, Result
 from rdflib.namespace import RDF
 from rdflib.plugins.sparql.processor import prepareQuery, SPARQLProcessor, SPARQLResult
-from rdflib.term import Node, BNode, Literal, Identifier
+from rdflib.term import Node, BNode, Literal, Identifier, URIRef
 from rdflib.parser import StringInputSource
 
 import numpy as np
@@ -54,6 +54,8 @@ class TermMap(ABC):
             self._id = BNode()
         else:
             self._id = map_id
+            
+        self._function_map = None
          
             
     def get_id(self) -> Union[URIRef, BNode]:
@@ -405,11 +407,19 @@ class LiteralObjectMap(ObjectMap):
         
         
 class TermObjectMap(ObjectMap):
-    def __init__(self, reference: Literal = None, template: Literal = None, constant: Union[Literal, URIRef] = None, term_type : URIRef = rml_vocab.LITERAL, language : 'Language' = None, datatype : URIRef = None, map_id: URIRef = None):
-        super().__init__(map_id, reference if reference is not None else template)
-        self._reference = reference
-        self._template = template
-        self._constant = constant
+    #def __init__(self, reference: Literal = None, template: Literal = None, constant: Union[Literal, URIRef] = None, term_type : URIRef = rml_vocab.LITERAL, language : 'Language' = None, datatype : URIRef = None, map_id: URIRef = None):
+    #    super().__init__(map_id, reference if reference is not None else template)
+    #    self._reference = reference
+    #    self._template = template
+    #    self._constant = constant
+    #    self._term_type = term_type
+    #    self._language : Language = language
+    #    self._datatype = datatype
+        
+        
+    def __init__(self, map: Node, map_type: Literal, term_type : URIRef = rml_vocab.LITERAL, language : 'Language' = None, datatype : URIRef = None, map_id: URIRef = None):
+        super().__init__(map_id, map)
+        self._map_type = map_type
         self._term_type = term_type
         self._language : Language = language
         self._datatype = datatype
@@ -417,14 +427,23 @@ class TermObjectMap(ObjectMap):
     def to_rdf(self) -> Graph:
         g = super().to_rdf()
         
-        if self._reference is not None:
-            g.add((self._id, rml_vocab.REFERENCE, self._reference))
-        elif self._constant is not None:
+        predicate = None
+        if self._map_type == Literal("reference"):
+            predicate = rml_vocab.REFERENCE
+        elif self._map_type == Literal("constant"):
+            predicate = rml_vocab.CONSTANT
             g.add((self._id, rml_vocab.CONSTANT, self._reference))
-        elif self._template is not None:
+        elif self._map_type == Literal("template"):
+            predicate = rml_vocab.TEMPLATE
             g.add((self._id, rml_vocab.TEMPLATE, self._template))
             if self._term_type is not None:
                 g.add((self._id, rml_vocab.TERM_TYPE, self._term_type))
+        elif self._map_type == Literal("functionmap"):
+            predicate = rml_vocab.FUNCTION_VALUE
+            
+            
+        if predicate:     
+            g.add((self._id, predicate, self._mapped_entity))
             
         if self._language is not None:
             lang_g = self._language.to_rdf()
@@ -495,22 +514,22 @@ class TermObjectMap(ObjectMap):
         term = None
         value = None
         
-        if self._reference is not None:
-            if self._reference.value in row:
-                value = row[self._reference.value]
+        if self._map_type == Literal("reference"):
+            if self._mapped_entity.value in row:
+                value = row[self._mapped_entity.value]
                 if value == value and self._term_type is not None and self._term_type != rml_vocab.LITERAL:
                     value = TermUtils.irify(value)
             else:
                 value = None
-        elif self._template is not None:
+        elif self._map_type == Literal("template"):
             if self._term_type is None or self._term_type == rml_vocab.LITERAL:
-                #value = TermUtils.eval_template(self._expression, row, False)
                 value = self._expression.eval(row, False)
             else:
-                #value = TermUtils.eval_template(self._expression, row, True)
                 value = self._expression.eval(row, True)
-        elif self._constant is not None:
-            value = self._constant
+        elif self._map_type == Literal("constant"):
+            value = self._mapped_entity
+        elif self._map_type == Literal("functionmap") and self._function_map:
+            value = self._function_map.apply_(row)
         
         if value is not None and value==value:
             # The term is a literal
@@ -540,17 +559,22 @@ class TermObjectMap(ObjectMap):
         term_maps = set()
         query = prepareQuery(
             """
-                SELECT DISTINCT ?p ?reference ?template ?constant ?tt ?datatype
+                SELECT DISTINCT ?p ?map ?mapType ?tt ?datatype
                 WHERE {
-                    OPTIONAL{?p rml:reference ?reference}
-                    OPTIONAL{?p rr:template ?template}
-                    OPTIONAL{?p rr:constant ?constant}
+                    {?p rml:reference ?map . BIND("reference" AS ?mapType)}
+                    UNION
+                    {?p rr:template ?map. BIND("template" AS ?mapType)}
+                    UNION
+                    {?p rr:constant ?map . BIND("constant" AS ?mapType)}
+                    UNION
+                    {?p fnml:functionValue ?map . BIND("functionmap" AS ?mapType)}
                     OPTIONAL{?p rr:termType ?tt}
                     OPTIONAL {?p rr:datatype ?datatype}
             }""",
             initNs = {
                 "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML
+                "rml": rml_vocab.RML,
+                "fnml": rml_vocab.FNML
                 })
 
         if parent is not None:
@@ -564,7 +588,11 @@ class TermObjectMap(ObjectMap):
             
             language = LanguageBuilder.build(g, term_object_map)
             
-            term_maps.add(TermObjectMap(row.reference, row.template, row.constant, row.tt, language, row.datatype, term_object_map))
+            tom = TermObjectMap(row.map, row.mapType, row.tt, language, row.datatype, term_object_map)
+            if row.mapType == Literal("functionmap"):
+                tom._function_map = FunctionMap.from_rdf(g, row.map).pop()
+            
+            term_maps.add(tom)
            
         return term_maps
         
@@ -845,11 +873,19 @@ class ConstantPredicate(Predicate):
 
 
 class PredicateMap(Predicate):
-    def __init__(self, triple_mapping : Union[BNode, URIRef], reference: Literal = None, template: Literal = None, constant: URIRef = None, map_id: URIRef = None):
-        super().__init__(map_id, reference if reference is not None else template if template is not None else constant)
-        self._reference = reference
-        self._template = template
-        self._constant = constant
+    
+    #def __init__(self, triple_mapping : Union[BNode, URIRef], reference: Literal = None, template: Literal = None, constant: URIRef = None, map_id: URIRef = None):
+    #    super().__init__(map_id, reference if reference is not None else template if template is not None else constant)
+    #    self._reference = reference
+    #    self._template = template
+    #    self._constant = constant
+    #    
+    #    self._triple_mapping = triple_mapping
+        
+    def __init__(self, triple_mapping : Union[BNode, URIRef], predicate_ref: Node, predicate_ref_type: str, map_id: URIRef = None):
+        super().__init__(map_id, predicate_ref)
+        
+        self._predicate_ref_type = predicate_ref_type
         
         self._triple_mapping = triple_mapping
         
@@ -857,13 +893,20 @@ class PredicateMap(Predicate):
         g = super().to_rdf()
         
         g.add(self._triple_mapping, rml_vocab.PREDICATE_MAP, self._id)
-        if self._reference is not None:
-            g.add((self._id, rml_vocab.REFERENCE, self._reference))
-        elif self._template is not None:
-            g.add((self._id, rml_vocab.TEMPLATE, self._template))
-        elif self._constant is not None:
-            g.add((self._id, rml_vocab.CONSTANT, self._constant))
+        
+        predicate = None
+        if self._predicate_ref_type == Literal("template"):
+            predicate = rml_vocab.TEMPLATE
+        elif self._predicate_ref_type == Literal("constant"):
+            predicate = rml_vocab.CONSTANT
+        elif self._predicate_ref_type == Literal("reference"):
+            predicate = rml_vocab.REFERENCE
+        elif self._predicate_ref_type == Literal("functionmap"):
+            predicate = rml_vocab.FUNCTION_VALUE
             
+        if predicate:
+            g.add((self._id, predicate, self._mapped_entity))
+        
         return g
     
     
@@ -907,28 +950,22 @@ class PredicateMap(Predicate):
     
     def apply_(self, row):
         
-        predicate = None
+        value = None
         
-        if self._reference is not None:
-            if self._reference.value in row:
-                value = row[self._reference.value]
-            else:
-                value = None
-        elif self._template is not None:
-            
-            #value = TermUtils.eval_template(self._expression, row, True)
+        if self._predicate_ref_type == Literal("template"):
             value = self._expression.eval(row, True)
-            
-        elif self._constant is not None:
-            
-            value = self._constant
-                
+        elif self._predicate_ref_type == Literal("constant"):
+            value = self._mapped_entity
+        elif self._predicate_ref_type == Literal("reference"):
+            value = row[self._mapped_entity.value]
+        elif self._predicate_ref_type == Literal("functionmap") and self._function_map:
+            value = self._function_map.apply_(row)
         
         if value != value:
             predicate = None
         else:
             
-            if isinstance(predicate, URIRef):
+            if isinstance(value, URIRef):
                 predicate = value
             else:
                 predicate = URIRef(value)
@@ -940,16 +977,33 @@ class PredicateMap(Predicate):
         term_maps = set()
         query = prepareQuery(
             """
-                SELECT DISTINCT ?tripleMap ?predicateMap ?reference ?template ?constant
+                SELECT DISTINCT ?tripleMap ?predicateMap ?map ?termType
                 WHERE {
                     ?tripleMap rr:predicateMap ?predicateMap
-                    OPTIONAL{?predicateMap rml:reference ?reference}
-                    OPTIONAL{?predicateMap rr:template ?template}
-                    OPTIONAL{?predicateMap rr:constant ?constant}
+                    {
+                        ?predicateMap rml:reference ?map
+                        BIND("reference" AS ?termType)
+                    }
+                    UNION
+                    {
+                        ?predicateMap rr:template ?map
+                        BIND("template" AS ?termType)
+                        
+                    }
+                    OPTIONAL{
+                        ?predicateMap rr:constant ?map
+                        BIND("constant" AS ?termType)
+                    }
+                    OPTIONAL{
+                        ?predicateMap fnml:functionValue ?map
+                        BIND("functionmap" AS ?termType)
+                    }
+                    
             }""",
             initNs = {
                 "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML
+                "rml": rml_vocab.RML,
+                "fnml": rml_vocab.FNML
                 })
 
         if parent is not None:
@@ -958,7 +1012,13 @@ class PredicateMap(Predicate):
             qres = g.query(query)
         
         for row in qres:
-            term_maps.add(PredicateMap(row.tripleMap, row.reference, row.template, row.constant, row.predicateMap))
+            #pm = PredicateMap(row.tripleMap, row.reference, row.template, row.constant, row.predicateMap)
+            pm = PredicateMap(row.tripleMap, row.map, row.termType, row.predicateMap)
+            
+            if row.termType == Literal("functionmap"):
+                pm._function_map = FunctionMap.from_rdf(g, row.map).pop()
+            
+            term_maps.add(pm)
            
         return term_maps
     
@@ -1375,7 +1435,7 @@ class GraphMap(AbstractMap):
                 else:
                     graph_map = GraphMap(row.g, row.mode, row.gm)
             elif row.g is not None:
-                graph_map = GraphMap(mapped_entity=row.g, mode=mode)
+                graph_map = GraphMap(mapped_entity=row.g, mode=row.mode)
                 
             term_maps.add(graph_map)
            
@@ -1411,6 +1471,9 @@ class SubjectMap(AbstractMap):
             g.add((subject_map, rml_vocab.CONSTANT, self._mapped_entity))
         elif self.__term_type == Literal("reference"):
             g.add((subject_map, rml_vocab.REFERENCE, self._mapped_entity))
+        elif self.__term_type == Literal("functionmap") and self._function_map:
+            g.add((subject_map, rml_vocab.FUNCTION_VALUE, self._function_map._id))
+            graph_add_all(g, self._function_map.to_rdf())
             
         if self.__class is not None:
             for c in self.__class:
@@ -1465,7 +1528,8 @@ class SubjectMap(AbstractMap):
             term = self._expression.eval(row, True)
         elif self.__term_type == Literal("reference"):
             term = URIRef(row[self._mapped_entity.value])
-        
+        elif self.__term_type == Literal("functionmap") and self._function_map:
+            term = self._function_map.apply_(row)
         
         if self.__graph_map:
             out = (self.__graph_map.apply_(row), term)
@@ -1494,6 +1558,11 @@ class SubjectMap(AbstractMap):
                 { ?sm rml:reference ?map
                   BIND("reference" AS ?termType)
                 }
+                UNION
+                {
+                 ?sm fnml:functionValue ?map
+                 BIND("functionmap" as ?termType)
+                }
                 OPTIONAL {?sm rr:class ?type}
                 OPTIONAL {
                     { ?sm rr:graphMap ?gm }
@@ -1503,7 +1572,7 @@ class SubjectMap(AbstractMap):
             }"""
         
         query = prepareQuery(sparql, 
-                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML})
+                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML, "fnml": rml_vocab.FNML})
         
         if parent is not None:
             qres = g.query(query, initBindings = { "p": parent})
@@ -1540,8 +1609,93 @@ class SubjectMap(AbstractMap):
         graph_map = None
         if row.gm:
             graph_map = GraphMap.from_rdf(graph, row.sm).pop()
+               
+        subject_map = SubjectMap(row.map, row.termType, {row.type}, graph_map, row.sm)
+        
+        if row.termType == Literal("functionmap"):
+            subject_map._function_map = FunctionMap.from_rdf(graph, row.map).pop()
+         
+        return subject_map
+    
+
+class FunctionMap(AbstractMap):
+    
+    
+    def __init__(self, funct_map: Node, poms: Set[PredicateObjectMap]):
+        super().__init__(funct_map, None)
+        self._poms = poms
+        
+    def to_rdf(self):
+        g = Graph()
+        
+        for pom in self._poms:
+            graph_add_all(g, pom.to_rdf())
+        
+    def apply(self, df: DataFrame):
+        pass
+        
+    def apply_(self, row):
+        
+        function_ref = None
+        input_args = dict()
+        
+        for pom in self._poms:
+            pom: PredicateObjectMap = pom
+            
+            predicate = pom.get_predicate().apply_(row)
+            object_map = pom.get_object_map().apply_(row)
+            
+            if predicate == rml_vocab.EXECUTES:
+                function_ref = object_map.value
+            else:
+                input_args[str(predicate)] = str(object_map)   
+        
+        
+        if function_ref:
+            
+            if RMLConverter.get_instance().has_registerd_function(function_ref):
+                fun = RMLConverter.get_instance().get_registerd_function(function_ref)
                 
-        return SubjectMap(row.map, row.termType, {row.type}, graph_map, row.sm)
+                #return fun(**input_args)
+                return fun.evaluate(input_args)
+            
+            else:
+                raise FunctionNotRegisteredException(function_ref)
+        else:
+            raise NoneFunctionException()
+     
+    @staticmethod
+    def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
+        mappings_dict = RMLConverter.get_instance().get_mapping_dict()
+            
+        sparql = """
+            SELECT DISTINCT ?funVal ?pom ?logicalSource
+            WHERE {
+                ?funVal rr:predicateObjectMap ?pom;   
+                rml:logicalSource ?logicalSource
+            }"""
+        
+        query = prepareQuery(sparql, 
+                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML, "fnml": rml_vocab.FNML})
+        
+        if parent is not None:
+            qres = g.query(query, initBindings = { "funVal": parent})
+        else:
+            qres = g.query(query)
+                    
+        poms = set()
+        for row in qres:
+            
+            pom_uri = row.pom
+            
+            pom = PredicateObjectMap.from_rdf(g, pom_uri)
+            
+            for pom_occurrence in pom:
+                poms.add(pom_occurrence)
+        
+        function_map = FunctionMap(parent, poms)
+            
+        return {function_map}
     
     
 class TripleMappings(AbstractMap):
@@ -2429,6 +2583,43 @@ class RMLParser():
                 if l: print(l.decode('ascii'))
         '''
 
+class RMLFunction():
+    
+    def __init__(self, fun_id, function, **kwargs):
+        self.__fun_id = fun_id
+        self.__function = function
+        self.__params = {}
+        
+        for k,v in kwargs.items():
+            self.__params[v] = k
+        
+    def get_fun_id(self):
+        return self.__fun_id
+    
+    def get_function(self):
+        return self.__function
+    
+    def get_param(self, param_id):
+        return self.__params[param_id]
+    
+    def has_param(self, param_id):
+        return param_id in self.__params
+    
+    def get_params(self):
+        return self.__params
+    
+    def evaluate(self, params: Dict[str, str]):
+        input_values = {}
+        for param in params:
+            
+            if param in self.__params:
+                input_values[self.__params[param]] = params[param] 
+            else:
+                raise ParameterNotExintingInFunctionException(self.__function, param)
+            
+        return self.__function(**input_values)
+                
+
 class RMLConverter():
     
     __instance = None
@@ -2443,8 +2634,8 @@ class RMLConverter():
         
     @staticmethod
     def get_instance():
-        #if RMLConverter.__instance is None:
-        #    RMLConverter.__instance = RMLConverter()
+        if RMLConverter.__instance is None:
+            RMLConverter.__instance = RMLConverter()
             
         return RMLConverter.__instance
         
@@ -2543,6 +2734,9 @@ class RMLConverter():
         
     def get_loaded_logical_sources(self):
         return self.__loaded_logical_sources
+    
+    def get_function_registry(self):
+        return self.__function_registry
         
 def initializer(rml_converter):
     logger = logging.getLogger("rdflib")
@@ -2642,3 +2836,23 @@ class EvalParser():
     
     
     
+class FunctionNotRegisteredException(Exception):
+    def __init__(self, function, message="The function {0} does not exist in the function registry"):
+        self.function = function
+        self.message = message.format(function)
+        super().__init__(self.message)
+        
+class NoneFunctionException(Exception):
+    def __init__(self, message="NoneType is not a valid callable object. Hence, no function can be retrieved from the fucntion registry of the RMLConverter."):
+        self.message = message
+        super().__init__(self.message)
+        
+class FunctionAlreadyRegisteredException(Exception):
+    def __init__(self, function, message="A function with the ID {0} already exists in the function registry of RMLConverter. If you want to update the registry please unregister the existing one before registering a new one."):
+        self.message = message.format(function)
+        super().__init__(self.message)
+        
+class ParameterNotExintingInFunctionException(Exception):
+    def __init__(self, function, parameter, message="The parameter {1} referred to in the function {0} was never declared as one of the arguments of such a function."):
+        self.message = message.format(function.__name__, parameter)
+        super().__init__(self.message)

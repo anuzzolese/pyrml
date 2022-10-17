@@ -8,6 +8,10 @@ QL = "http://semweb.mmlab.be/ns/ql#"
 
 CRML = "http://w3id.org/stlab/crml#"
 
+FNML= "http://semweb.mmlab.be/ns/fnml#"
+
+FNO = "http://w3id.org/function/ontology#"
+
 CONDITION = URIRef(CRML + "condition")
 
 HAS_JOINED_SOURCE = URIRef(CRML + "hasJoinedSource")
@@ -35,6 +39,8 @@ LANGUAGE_MAP = URIRef(RML + "languageMap")
 DATATYPE = URIRef(RR + "datatype")
 
 PARENT_TRIPLES_MAP = URIRef(RR + "parentTriplesMap")
+
+FUNCTION_VALUE = URIRef(FNML + "functionValue")
 
 TEMPLATE = URIRef(RR + "template")
 
@@ -81,3 +87,5 @@ IRI = URIRef(RR + "IRI")
 BLANK_NODE = URIRef(RR + "BlankNode")
 
 LITERAL = URIRef(RR + "Literal")
+
+EXECUTES = URIRef(FNO + "executes")
