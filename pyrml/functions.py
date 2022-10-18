@@ -6,10 +6,12 @@ Created on 14 Oct 2022
 
 from pyrml import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
 import datetime, locale, hashlib
-
+import uuid, shortuuid
 import numpy as np
 
 from typing import List, Dict, Callable, TypeVar
+
+import math
 
 T = TypeVar('T')
 
@@ -280,3 +282,69 @@ def array_join(arr: List[str], separator: str) -> str:
               p_to='http://example.com/idlab/function/p_to')
 def in_range(test: float, p_from: float, p_to: float) -> bool:
     return test in range(p_from, p_to)
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#math_exp', 
+              num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
+def math_exp(num: float) -> float:
+    return math.exp(num)
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#math_floor', 
+              num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
+def math_floor(num: float) -> float:
+    return math.floor(num)
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#math_round', 
+              num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
+def math_round(num: float) -> float:
+    return round(num)
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#math_ln', 
+              num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
+def math_ln(num: float) -> float:
+    return math.log(num)
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#math_log', 
+              num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
+def math_log(num: float) -> float:
+    return math.log(num, 10)
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#boolean_not', 
+              bool_value='http://users.ugent.be/~bjdmeest/function/grel.ttl#bool_b')
+def boolean_not(bool_value: bool) -> bool:
+    return not bool_value
+
+@rml_function(fun_id='http://example.com/idlab/function/random')
+def random() -> str:
+    return str(uuid.uuid4())
+
+
+@rml_function(fun_id='https://w3id.org/stlab/rml-functions.ttl#short_uuid',
+              string='https://w3id.org/stlab/rml-functions.ttl#in_string',
+              uuid_len='https://w3id.org/stlab/rml-functions.ttl#uuid_len')
+def short_uuid(string: str, uuid_len: int = 8) -> str:
+    return shortuuid.uuid(string)[:uuid_len]
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_md5',
+              value='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter')
+def string_md5(value: str) -> str:
+    digest = hashlib.md5(value.encode())
+    return digest.hexdigest()
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_sha1',
+              value='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter')
+def string_sha1(value: str) -> str:
+    digest = hashlib.sha1(value.encode())
+    return digest.hexdigest()
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#array_slice',
+              arr='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_array_a',
+              from_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_from',
+              to_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_opt_to',)
+def array_slice(arr: List[T], from_i: int = None, to_i: int = None) -> List[T]:
+    return arr[from_i:to_i]
