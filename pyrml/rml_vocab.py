@@ -10,7 +10,9 @@ CRML = "http://w3id.org/stlab/crml#"
 
 FNML= "http://semweb.mmlab.be/ns/fnml#"
 
-FNO = "http://w3id.org/function/ontology#"
+FNO = "https://w3id.org/function/ontology#"
+
+CSVW= "http://www.w3.org/ns/csvw#"
 
 CONDITION = URIRef(CRML + "condition")
 

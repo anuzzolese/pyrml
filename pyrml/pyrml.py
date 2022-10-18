@@ -1256,6 +1256,7 @@ class LogicalSource(AbstractMap):
     def __init__(self, source: Literal, separator: str = None, map_id: URIRef = None, reference_formulation: URIRef = None, iterator: Literal = None):
         super().__init__(map_id, source)
         self.__separator = separator
+        
         if reference_formulation is None:
             self.__reference_formulation = rml_vocab.CSV
         else:
@@ -1328,16 +1329,26 @@ class LogicalSource(AbstractMap):
             SELECT DISTINCT ?ls ?source ?rf ?sep ?ite
             WHERE {
                 ?p rml:logicalSource ?ls .
-                ?ls rml:source ?source .
+                {
+                    ?ls rml:source ?source
+                    FILTER(isLiteral(?source))
+                }
+                UNION
+                {
+                    ?ls rml:source ?s .
+                    ?s csvw:url ?source
+                    OPTIONAL {?s csvw:dialect/csvw:delimiter ?sep}  
+                }
                 OPTIONAL {?ls rml:referenceFormulation ?rf}
-                OPTIONAL {?ls crml:separator ?sep}
                 OPTIONAL {?ls rml:iterator ?ite}
             }"""
+            #OPTIONAL {?ls crml:separator ?sep}
         
         query = prepareQuery(sparql, 
                 initNs = { 
                     "rml": rml_vocab.RML,
-                    "crml": rml_vocab.CRML 
+                    "crml": rml_vocab.CRML,
+                    "csvw": rml_vocab.CSVW
                 })
         
         if parent is not None:
@@ -1671,8 +1682,8 @@ class FunctionMap(AbstractMap):
         sparql = """
             SELECT DISTINCT ?funVal ?pom ?logicalSource
             WHERE {
-                ?funVal rr:predicateObjectMap ?pom;   
-                rml:logicalSource ?logicalSource
+                ?funVal rr:predicateObjectMap ?pom   
+                OPTIONAL{?funVal rml:logicalSource ?logicalSource}
             }"""
         
         query = prepareQuery(sparql, 
@@ -1685,7 +1696,6 @@ class FunctionMap(AbstractMap):
                     
         poms = set()
         for row in qres:
-            
             pom_uri = row.pom
             
             pom = PredicateObjectMap.from_rdf(g, pom_uri)
@@ -1694,7 +1704,7 @@ class FunctionMap(AbstractMap):
                 poms.add(pom_occurrence)
         
         function_map = FunctionMap(parent, poms)
-            
+        
         return {function_map}
     
     

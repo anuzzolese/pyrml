@@ -24,7 +24,7 @@ def rml_function(fun_id: str, **params: Dict[str, str]) -> Callable:
 
             return f(*args, **kwargs)
   
-
+        
         rml_converter = RMLConverter.get_instance()
         if rml_converter.has_registerd_function(fun_id):
             raise FunctionAlreadyRegisteredException(fun_id)
@@ -32,7 +32,7 @@ def rml_function(fun_id: str, **params: Dict[str, str]) -> Callable:
             rml_f = RMLFunction(fun_id, f, **params)
             rml_converter.register_function(fun_id, rml_f)
     
-            
+        
         return wrapper
     
     return rml_decorator
@@ -232,7 +232,7 @@ def array_reverse(arr: List[T]) -> List[T]:
               value='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter',
               sep='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
 def string_chomp(value: str, sep: str = '') -> str:
-    return str.replace('\n', sep)
+    return value.replace('\n', sep)
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#other_coalesce', 
               exprs='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_any_rep_e')
@@ -345,6 +345,12 @@ def string_sha1(value: str) -> str:
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#array_slice',
               arr='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_array_a',
               from_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_from',
-              to_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_opt_to',)
+              to_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_opt_to')
 def array_slice(arr: List[T], from_i: int = None, to_i: int = None) -> List[T]:
     return arr[from_i:to_i]
+
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#math_ceil',
+              num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
+def math_ceil(num: float) -> float:
+    return math.ceil(num)
