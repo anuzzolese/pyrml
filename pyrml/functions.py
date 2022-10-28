@@ -4,7 +4,7 @@ Created on 14 Oct 2022
 @author: Andrea Nuzzolese
 '''
 
-from pyrml.core import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
+from pyrml.pyrml import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
 import datetime, locale, hashlib
 import uuid, shortuuid
 import numpy as np
