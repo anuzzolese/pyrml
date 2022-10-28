@@ -21,7 +21,6 @@ Decorator for enabling the registration of function by means of function definit
 def rml_function(fun_id: str, **params: Dict[str, str]) -> Callable:
     def rml_decorator(f: Callable) -> Callable:
         
-        print(f'Registered {f.__name__}')
         def wrapper(*args, **kwargs) -> T:
 
             return f(*args, **kwargs)
