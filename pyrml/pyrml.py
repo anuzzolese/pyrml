@@ -12,7 +12,7 @@ from typing import Dict, Union, Set, List
 from pandas.core.frame import DataFrame
 from rdflib import URIRef, Graph, ConjunctiveGraph, Dataset, plugin
 from rdflib.query import Processor, Result
-from rdflib.namespace import RDF
+from rdflib.namespace import RDF, NamespaceManager, Namespace
 from rdflib.plugins.sparql.processor import prepareQuery, SPARQLProcessor, SPARQLResult
 from rdflib.term import Node, BNode, Literal, Identifier, URIRef
 from rdflib.parser import StringInputSource
@@ -1921,7 +1921,7 @@ class TripleMappings(AbstractMap):
                 #triplification = lambda x: TripleMappings.__add_types(x, self.__subject_map.get_class(), g)
                 #sbj_representation.apply(triplification)
                 
-                for k,v in sbj_representation.iteritems():
+                for k,v in sbj_representation.items():
                     try:
                         g.add((v, RDF.type, self.__subject_map.get_class()))
                         
@@ -2072,7 +2072,7 @@ class TripleMappings(AbstractMap):
                 #triplification = lambda x: TripleMappings.__add_types(x, self.__subject_map.get_class(), g)
                 #sbj_representation.apply(triplification)
                 
-                for k,v in sbj_representation.iteritems():
+                for k,v in sbj_representation.items():
                     try:
                         _classes = self.__subject_map.get_class()
                         if _classes:
@@ -2579,8 +2579,20 @@ class RMLParser():
     
     @staticmethod
     def parse(source, format="ttl"):
+        
         g = Graph()
+        
+        g.bind('csvw', Namespace(rml_vocab.CSVW))
+        g.bind('rr', Namespace(rml_vocab.RR))
+        g.bind('rml', Namespace(rml_vocab.RML))
+        g.bind('ql', Namespace(rml_vocab.QL))
+        g.bind('crml', Namespace(rml_vocab.CRML))
+        g.bind('fnml', Namespace(rml_vocab.FNML))
+        g.bind('fno', Namespace(rml_vocab.FNO))
+        
+        
         g.parse(source, format=format)
+        
         
         return TripleMappings.from_rdf(g)
         
@@ -2642,8 +2654,8 @@ class RMLConverter():
         self.subject_map_representations = dict()
         RMLConverter.__instance = self
         
-    @staticmethod
-    def get_instance():
+    @classmethod
+    def get_instance(cls):
         if RMLConverter.__instance is None:
             RMLConverter.__instance = RMLConverter()
             
@@ -2662,8 +2674,10 @@ class RMLConverter():
         plugin.register("sparql", Result, "rdflib.plugins.sparql.processor", "SPARQLResult")
         plugin.register("sparql", Processor, "rdflib.plugins.sparql.processor", "SPARQLProcessor")
         
+        print(template_vars)
         
         if template_vars is not None:
+            
             
             if os.path.isabs(rml_mapping):
                 templates_searchpath = "/"

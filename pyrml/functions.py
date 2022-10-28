@@ -20,6 +20,8 @@ Decorator for enabling the registration of function by means of function definit
 '''
 def rml_function(fun_id: str, **params: Dict[str, str]) -> Callable:
     def rml_decorator(f: Callable) -> Callable:
+        
+        print(f'Registered {f.__name__}')
         def wrapper(*args, **kwargs) -> T:
 
             return f(*args, **kwargs)
@@ -213,7 +215,7 @@ def concat(string1: str, string2: str, delimiter: str = '') -> str:
               match='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_find',
               replace='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_replace')
 def string_replace(string: str, match: str, replace: str) -> str:
-    return str.replace(match, replace)
+    return string.replace(match, replace)
 
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_replaceChars', 
@@ -273,7 +275,7 @@ def last_index_of(string: str, substring: str) -> int:
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#array_join', 
               arr='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_array_a',
               separator='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
-def array_join(arr: List[str], separator: str) -> str:
+def array_join(arr: List[str], separator: str = '') -> str:
     return separator.join(arr)
 
 @rml_function(fun_id='http://example.com/idlab/function/inRange', 
