@@ -42,6 +42,28 @@ import time
 from datetime import timedelta
 
 
+class FunctionNotRegisteredException(Exception):
+    def __init__(self, function, message="The function {0} does not exist in the function registry"):
+        self.function = function
+        self.message = message.format(function)
+        super().__init__(self.message)
+        
+class NoneFunctionException(Exception):
+    def __init__(self, message="NoneType is not a valid callable object. Hence, no function can be retrieved from the fucntion registry of the RMLConverter."):
+        self.message = message
+        super().__init__(self.message)
+        
+class FunctionAlreadyRegisteredException(Exception):
+    def __init__(self, function, message="A function with the ID {0} already exists in the function registry of RMLConverter. If you want to update the registry please unregister the existing one before registering a new one."):
+        self.message = message.format(function)
+        super().__init__(self.message)
+        
+class ParameterNotExintingInFunctionException(Exception):
+    def __init__(self, function, parameter, message="The parameter {1} referred to in the function {0} was never declared as one of the arguments of such a function."):
+        self.message = message.format(function.__name__, parameter)
+        super().__init__(self.message)
+
+
 def graph_add_all(g1, g2):
     for (s,p,o) in g2:
         g1.add((s,p,o))
@@ -2857,26 +2879,4 @@ class EvalParser():
         #logging.debug("Expr", expr)
         tree = EvalParser.LARK.parse(expr)
         return EvalTransformer(row).transform(tree)
-    
-    
-    
-class FunctionNotRegisteredException(Exception):
-    def __init__(self, function, message="The function {0} does not exist in the function registry"):
-        self.function = function
-        self.message = message.format(function)
-        super().__init__(self.message)
         
-class NoneFunctionException(Exception):
-    def __init__(self, message="NoneType is not a valid callable object. Hence, no function can be retrieved from the fucntion registry of the RMLConverter."):
-        self.message = message
-        super().__init__(self.message)
-        
-class FunctionAlreadyRegisteredException(Exception):
-    def __init__(self, function, message="A function with the ID {0} already exists in the function registry of RMLConverter. If you want to update the registry please unregister the existing one before registering a new one."):
-        self.message = message.format(function)
-        super().__init__(self.message)
-        
-class ParameterNotExintingInFunctionException(Exception):
-    def __init__(self, function, parameter, message="The parameter {1} referred to in the function {0} was never declared as one of the arguments of such a function."):
-        self.message = message.format(function.__name__, parameter)
-        super().__init__(self.message)

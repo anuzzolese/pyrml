@@ -1,8 +1,8 @@
-'''
-Created on 14 Oct 2022
-
-@author: Andrea Nuzzolese
-'''
+__author__ = "Andrea Giovanni Nuzzolese"
+__email__ = "andrea.nuzzolese@cnr.it"
+__license__ = "Apache 2"
+__version__ = "0.2.9"
+__status__ = "Alpha"
 
 from pyrml.pyrml import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
 import datetime, locale, hashlib
