@@ -1362,6 +1362,7 @@ class LogicalSource(AbstractMap):
                     OPTIONAL {?s csvw:dialect/csvw:delimiter ?sep}  
                 }
                 OPTIONAL {?ls rml:referenceFormulation ?rf}
+                OPTIONAL {?ls crml:separator ?sep}
                 OPTIONAL {?ls rml:iterator ?ite}
             }"""
             #OPTIONAL {?ls crml:separator ?sep}
