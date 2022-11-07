@@ -2796,7 +2796,7 @@ def initializer(rml_converter):
 def pool_map(triple_mappings):
     g = Graph()
     for tm in triple_mappings:
-        triples = tm.apply()
+        triples = tm.apply_()
         graph_add_all(g, triples)
         
     return g
