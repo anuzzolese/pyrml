@@ -4,10 +4,11 @@ __license__ = "Apache 2"
 __version__ = "0.2.9"
 __status__ = "Alpha"
 
-from pyrml.pyrml import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
+from pyrml.pyrml_core import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
 import datetime, locale, hashlib
 import uuid, shortuuid
 import numpy as np
+from slugify import slugify
 
 from typing import List, Dict, Callable, TypeVar
 
@@ -355,3 +356,14 @@ def array_slice(arr: List[T], from_i: int = None, to_i: int = None) -> List[T]:
               num='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_dec_n')
 def math_ceil(num: float) -> float:
     return math.ceil(num)
+
+
+@rml_function(fun_id='http://example.com/idlab/function/slugify',
+              string='http://example.com/idlab/function/str')
+def rml_slugify(string: str) -> str:
+    return slugify(string)
+
+
+if __name__ == '__main__':
+    ret = rml_slugify('This is a test ---')
+    print(ret)
