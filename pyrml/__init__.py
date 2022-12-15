@@ -1,2 +1,2 @@
-from pyrml.pyrml import *
+from pyrml.pyrml_core import *
 from pyrml.functions import *
