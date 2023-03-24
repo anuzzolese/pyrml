@@ -14,6 +14,8 @@ FNO = "https://w3id.org/function/ontology#"
 
 CSVW= "http://www.w3.org/ns/csvw#"
 
+SD = "http://www.w3.org/ns/sparql-service-description#"
+
 CONDITION = URIRef(CRML + "condition")
 
 HAS_JOINED_SOURCE = URIRef(CRML + "hasJoinedSource")
@@ -51,6 +53,8 @@ TERM_TYPE = URIRef(RR + "termType")
 CLASS = URIRef(RR + "class")
 
 GRAPH_MAP = URIRef(RR + "graphMap")
+
+GRAPH = URIRef(RR + "graph")
 
 CSV = URIRef(QL + "CSV")
 
@@ -91,3 +95,5 @@ BLANK_NODE = URIRef(RR + "BlankNode")
 LITERAL = URIRef(RR + "Literal")
 
 EXECUTES = URIRef(FNO + "executes")
+
+SERVICE = URIRef(SD + "Service")

@@ -1,14 +1,19 @@
+from builtins import isinstance
 __author__ = "Andrea Giovanni Nuzzolese"
 __email__ = "andrea.nuzzolese@cnr.it"
 __license__ = "Apache 2"
 __version__ = "0.2.9"
 __status__ = "Alpha"
 
-from pyrml.pyrml_core import RMLConverter, FunctionAlreadyRegisteredException, RMLFunction
+from pyrml.pyrml_mapper import RMLConverter
+from pyrml.pyrml_api import FunctionAlreadyRegisteredException
+from pyrml.pyrml_core import RMLFunction
 import datetime, locale, hashlib
 import uuid, shortuuid
 import numpy as np
 from slugify import slugify
+
+from rdflib import Literal
 
 from typing import List, Dict, Callable, TypeVar
 
@@ -101,7 +106,13 @@ def normalize_date(date: str, pattern: str) -> str:
               date='http://example.com/idlab/function/strDate',
               pattern='http://example.com/idlab/function/pattern')
 def normalize_date_time(date: str, pattern: str) -> str:
-    return str(datetime.datetime.strptime(date, pattern))
+    try:
+        out = str(datetime.datetime.strptime(date, pattern).isoformat())
+    except Exception as e:
+        print(out)
+        raise e
+    
+    return out
 
 @rml_function(fun_id='http://example.com/idlab/function/normalizeDateTimeWithLang', 
               date='http://example.com/idlab/function/strDate',
@@ -137,9 +148,14 @@ def normalize_date_with_lang(date: str, pattern: str, lang: str) -> str:
 
 @rml_function(fun_id='http://example.com/idlab/function/isNull', 
               value='http://example.com/idlab/function/str')
-def is_null(value: str) -> bool:
+def is_null(value: str = None) -> bool:
     
-    return False if value else True
+    if value:
+        if isinstance(value, Literal):
+            value = str(value)
+            return True if value=='nan' else False
+    else:
+        return False
 
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#boolean_and', 
@@ -188,7 +204,8 @@ def string_length(s: str) -> int:
               e_true='http://users.ugent.be/~bjdmeest/function/grel.ttl#any_true',
               e_false='http://users.ugent.be/~bjdmeest/function/grel.ttl#any_false')
 def controls_if(cond: bool, e_true: T, e_false: T = None) -> int:
-    return e_true if cond else e_false
+    
+    return e_true if str(cond)=='true' else e_false
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#listContainsElement', 
               l='http://example.com/idlab/function/list',
@@ -200,7 +217,7 @@ def list_contains_element(l: List[T], value: T) -> bool:
               string='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter',
               substring='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_sub')
 def string_contains(string: str, substring: str) -> bool:
-    return substring in str
+    return substring in string
 
 
 @rml_function(fun_id='http://example.com/idlab/function/concat', 
@@ -215,7 +232,10 @@ def concat(string1: str, string2: str, delimiter: str = '') -> str:
               match='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_find',
               replace='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_replace')
 def string_replace(string: str, match: str, replace: str) -> str:
-    return string.replace(match, replace)
+    print('èè')
+    x = string.replace(match, replace)
+    print('àà')
+    return x
 
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_replaceChars', 
@@ -276,7 +296,7 @@ def last_index_of(string: str, substring: str) -> int:
               arr='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_array_a',
               separator='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
 def array_join(arr: List[str], separator: str = '') -> str:
-    return separator.join(arr)
+    return separator.join(arr) if isinstance(arr, list) else arr
 
 @rml_function(fun_id='http://example.com/idlab/function/inRange', 
               test='http://example.com/idlab/function/p_test',
@@ -316,7 +336,7 @@ def math_log(num: float) -> float:
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#boolean_not', 
               bool_value='http://users.ugent.be/~bjdmeest/function/grel.ttl#bool_b')
 def boolean_not(bool_value: bool) -> bool:
-    return not bool_value
+    return not (True if bool_value == 'true' else False)
 
 @rml_function(fun_id='http://example.com/idlab/function/random')
 def random() -> str:
@@ -363,7 +383,8 @@ def math_ceil(num: float) -> float:
 def rml_slugify(string: str) -> str:
     return slugify(string)
 
-
-if __name__ == '__main__':
-    ret = rml_slugify('This is a test ---')
-    print(ret)
+@rml_function(fun_id='http://example.com/idlab/function/trueCondition',
+              b_expr='http://example.com/idlab/function/strBoolean',
+              string='http://example.com/idlab/function/str')
+def true_condition(b_expr: bool, string: str) -> str:
+    return string if b_expr == 'true' else None

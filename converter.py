@@ -1,10 +1,10 @@
 from argparse import ArgumentParser
-from pyrml import RMLConverter
-from pyrml.functions import *
 import logging
 import os, codecs
-
 from pathlib import Path
+from pyrml.pyrml_mapper import RMLConverter
+from pyrml.functions import *
+
 
 class PyrmlCMDTool:
 
