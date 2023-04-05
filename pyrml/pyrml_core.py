@@ -275,11 +275,11 @@ class TermObjectMap(ObjectMap):
                         
                         languages = self.language.apply_(data_source)
                         
-                        terms = np.array([Literal(lit, lang=lang) if lit else None for lit, lang in zip(terms, languages)], dtype=Literal)
+                        terms = np.array([Literal(lit, lang=lang) if lit and not pd.isna(lit) else None for lit, lang in zip(terms, languages)], dtype=Literal)
                         
                     elif self.datatype is not None:
                         
-                        l = lambda term: Literal(term, datatype=self.datatype) if term else None
+                        l = lambda term: Literal(term, datatype=self.datatype) if term and not pd.isna(term) else None
                         
                         terms = np.array([l(term) for term in terms], dtype=Literal)
                     else:
@@ -287,12 +287,12 @@ class TermObjectMap(ObjectMap):
                 else:
                     if self.term_type == rml_vocab.BLANK_NODE:
                         
-                        l = lambda term: BNode(term) if term else term
+                        l = lambda term: BNode(term) if term and not pd.isna(term) else term
                         terms = np.array([l(term) for term in terms], dtype=BNode)
                         
                     else:
                         
-                        l = lambda term: URIRef(term) if term else term
+                        l = lambda term: URIRef(term) if term and not pd.isna(term) else term
                         terms = np.array([l(term) for term in terms], dtype=URIRef)
                         
             
@@ -1078,7 +1078,7 @@ class LogicalSource(AbstractMap):
                     df = None
                 
                 
-                df.columns = df.columns.str.replace(r' ', '_')
+                #df.columns = df.columns.str.replace(r' ', '_')
                 
                 dfs.append(df)
                 
@@ -2432,10 +2432,7 @@ class RMLFunction():
             
         try:
             out = self.__function(**input_values)
-            if out:
-                return out
-            else: 
-                raise NoneFunctionException
+            return out
         except Exception as e:
             pass
             #print(e)

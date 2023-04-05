@@ -296,7 +296,8 @@ def last_index_of(string: str, substring: str) -> int:
               arr='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_array_a',
               separator='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
 def array_join(arr: List[str], separator: str = '') -> str:
-    return separator.join(arr) if isinstance(arr, list) else arr
+    not_none = lambda x : x and x != Literal('None') and x != Literal('nan')
+    return separator.join(filter(not_none, arr)) if isinstance(arr, list) else arr
 
 @rml_function(fun_id='http://example.com/idlab/function/inRange', 
               test='http://example.com/idlab/function/p_test',
@@ -387,4 +388,4 @@ def rml_slugify(string: str) -> str:
               b_expr='http://example.com/idlab/function/strBoolean',
               string='http://example.com/idlab/function/str')
 def true_condition(b_expr: bool, string: str) -> str:
-    return string if b_expr == 'true' else None
+    return string if b_expr.value else None

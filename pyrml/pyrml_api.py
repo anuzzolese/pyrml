@@ -189,18 +189,21 @@ class Expression():
             return None
         
     def _eval_(self, row, columns, is_iri):
-        items = [item._eval_(row, columns, is_iri) for item in self._subexprs]
+        items = [item._eval_(row,   columns, is_iri) for item in self._subexprs]
         try:
             value = "".join(items)
         except:
+            '''
             print(f'1: {self._subexprs}')
             print(f'2: {[str(item) for item in self._subexprs]}')
             print(f'3: {row}')
             for item in self._subexprs:
                 print(f'\t {item.eval(row, is_iri)}')
             raise
+            '''
+            value = None
         
-        if value != '':
+        if value:
             return URIRef(value) if is_iri else value
         else:
             return None
@@ -395,7 +398,8 @@ class TermUtils():
         for match in matches:
             column = match.group(0)
             
-            column_key = column.strip().replace(r' ', '_')
+            #column_key = column.strip().replace(r' ', '_')
+            column_key = column.strip()
             if column_key in columns:
                 
                 text = "{( )*" + re.escape(column) + "( )*}"
@@ -403,7 +407,8 @@ class TermUtils():
                 target_value = DataSource.get_from_row(row, columns, column_key)
                 
                 if target_value != target_value:
-                    s = re.sub(text, '', s)
+                    #s = re.sub(text, '', s)
+                    return None
                 else:
                     if column not in columns:
                         column += "_l"
