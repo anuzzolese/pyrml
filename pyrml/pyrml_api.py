@@ -386,7 +386,6 @@ class TermUtils():
     
     @staticmethod
     def replace_place_holders_(value, row, columns, is_iri):
-        #p = re.compile('\{(.+)\/?\}')
         p = re.compile('(?<=\{).+?(?=\})')
         
         matches = p.finditer(value)
@@ -398,7 +397,7 @@ class TermUtils():
             column = match.group(0)
             
             #column_key = column.strip().replace(r' ', '_')
-            column_key = column.strip()
+            column_key = column.strip("' ")
             if column_key in columns:
                 
                 text = "{( )*" + re.escape(column) + "( )*}"
