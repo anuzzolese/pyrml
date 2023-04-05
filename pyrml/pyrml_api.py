@@ -1,4 +1,3 @@
-from sqlalchemy.log import Identified
 from rdflib.tools.csv2rdf import column
 from builtins import isinstance
 __author__ = "Andrea Giovanni Nuzzolese"
@@ -12,7 +11,7 @@ from abc import ABC, abstractmethod
 import hashlib
 import os
 import re
-from typing import Union, Set, Generator
+from typing import Set, Generator
 
 from lark import Lark
 from lark.visitors import Transformer

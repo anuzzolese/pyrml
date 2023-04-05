@@ -7,21 +7,21 @@ __status__ = "Alpha"
 import logging
 import multiprocessing
 import os
+import time
 from typing import Dict, Generator, Union, List
 
 from jinja2 import Environment, FileSystemLoader
-from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, IdentifiedNode, URIRef
-from rdflib.term import Node, BNode
+from pyrml.pyrml_api import MappingsDict, graph_add_all
+from pyrml.pyrml_core import TripleMappings, \
+    TripleMapping, LogicalSource
+from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
 from rdflib.parser import StringInputSource
 from rdflib.query import Processor, Result
 
 import numpy as np
-from pyrml.pyrml_api import MappingsDict, graph_add_all
-from pyrml.pyrml_core import TripleMappings, PredicateObjectMap,\
-    ReferencingObjectMap, TripleMapping, LogicalSource
-import pyrml.rml_vocab as rml_vocab
-import time
 import pandas as pd
+import pyrml.rml_vocab as rml_vocab
+
 
 class RMLParser():
     

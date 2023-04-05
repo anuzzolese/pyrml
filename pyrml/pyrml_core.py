@@ -1,26 +1,22 @@
 from abc import abstractmethod
 from io import BytesIO
 import json
+from pyrml import rml_vocab
 import time
 from typing import Dict, Union, Set, List, Type, Generator
 
 from SPARQLWrapper import SPARQLWrapper
 from jsonpath_ng import parse
 from pandas.core.frame import DataFrame
-from rdflib import URIRef, Graph, ConjunctiveGraph, IdentifiedNode
+from pyrml.pyrml_api import DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException
+from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF
 from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.plugins.sparql.sparql import Query
-from rdflib.term import Node, BNode, Literal, Identifier, IdentifiedNode, URIRef
-from tensorflow.python.eager.function import np_arrays
+from rdflib.term import Node, BNode, Literal, Identifier
 
 import numpy as np
 import pandas as pd
-from pyrml.pyrml_api import DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException
 import pyrml.rml_vocab as rml_vocab
-from pyrml import rml_vocab
-from openpyxl.chart import data_source
-from h11._abnf import chunk_size
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
