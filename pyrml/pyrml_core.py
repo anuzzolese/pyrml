@@ -1294,7 +1294,7 @@ class SubjectMap(AbstractMap):
                     
                     n_rows = data_source.data.shape[0]
                     l = lambda val : URIRef(TermUtils.irify(val)) if val else None
-                    terms = np.array([l(term) for x in range(n_rows)], dtype=URIRef)
+                    terms = np.array([l(self.value.value) for x in range(n_rows)], dtype=URIRef)
                 
                 
             AbstractMap.get_rml_converter().mappings[self] = terms
@@ -1721,6 +1721,8 @@ class TripleMappings(AbstractMap):
                                                         
                                     else:
                                 
+                                        
+                                        '''
                                         if isinstance(object_map, ReferencingObjectMap):
                                             for ptm in object_map.parent_triples_maps:
                                                 
@@ -1734,8 +1736,9 @@ class TripleMappings(AbstractMap):
                                         
                                         else:
                                             
-                                            pom_representation = pom.apply_(data_source)
                                             
+                                        ''' 
+                                        pom_representation = pom.apply_(data_source)   
                                             
                                     if pom_representation is not None:
                                         #results: pd.DataFrame = pd.concat([sbj_representation, pom_representation], axis=1, sort=False)
