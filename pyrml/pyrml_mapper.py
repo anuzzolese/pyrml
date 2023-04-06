@@ -201,7 +201,7 @@ class RMLConverter():
             start_time = time.time()
             
             for tm in triple_mappings:
-                for _tuple in tm.apply_():
+                for _tuple in tm.apply():
                     try:
                         g.add(tuple(_tuple))
                     except Exception as e:
@@ -332,7 +332,7 @@ def initializer(rml_converter):
 def pool_map(triple_mappings):
     g = Graph()
     for tm in triple_mappings:
-        triples = tm.apply_()
+        triples = tm.apply()
         graph_add_all(g, triples)
         
     return g

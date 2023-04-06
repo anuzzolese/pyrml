@@ -51,11 +51,7 @@ class ConstantObjectMap(ObjectMap):
         g.add((self._id, rml_vocab.CONSTANT, self.__value))
         return g
     
-    def apply(self, row: pd.Series = None) -> Node:
-        
-        return self.__value
-    
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
@@ -185,51 +181,7 @@ class TermObjectMap(ObjectMap):
         return g
     
     
-    def apply(self, row: pd.Series) -> Generator:
-        
-        term = None
-        value = None
-        if self.map_type == Literal("reference"):
-            if self.value.value in row._asdict():
-                v = self.value.value.replace(r' ', '_')
-                value = getattr(row, v)
-                if value == value and self.term_type is not None and self.term_type != rml_vocab.LITERAL:
-                    value = TermUtils.irify(value)
-            else:
-                value = None
-        elif self.map_type == Literal("template"):
-            if self.term_type is None or self.term_type == rml_vocab.LITERAL:
-                value = self._expression.eval(row, False)
-            else:
-                value = self._expression.eval(row, True)
-        elif self.map_type == Literal("constant"):
-            value = self.value
-        elif self.map_type == Literal("functionmap") and self._function_map:
-            value = self._function_map.apply(row)
-            
-        
-        if value and value!='None':
-            # The term is a literal
-            if self.term_type is None or self.term_type == rml_vocab.LITERAL:
-                if value != value:
-                    return None
-                elif self.language is not None:
-                    #language = TermUtils.eval_template(self._language.value, row, False)
-                    #term = Literal(value, lang=self._language.value)
-                    return Literal(value, lang=self.language.apply(row))
-                elif self.datatype is not None:
-                    #datatype = TermUtils.eval_template(str(self._datatype), row, False)
-                    return Literal(value, datatype=self.datatype)
-                else:
-                    return Literal(value)
-            else:
-                if self.term_type == rml_vocab.BLANK_NODE:
-                    return BNode(value)
-                else:
-                    return URIRef(value)
-                
-    
-    def apply_(self, data_source: DataSource) -> np.array:
+    def apply(self, data_source: DataSource) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
@@ -255,7 +207,7 @@ class TermObjectMap(ObjectMap):
                 terms = [self.value for x in range(n_rows)]
                 
             elif self.map_type == Literal("functionmap") and self._function_map:
-                terms = self._function_map.apply_(data_source)
+                terms = self._function_map.apply(data_source)
             
             else:
                 terms = None
@@ -269,7 +221,7 @@ class TermObjectMap(ObjectMap):
                         #language = TermUtils.eval_template(self._language.value, row, False)
                         #term = Literal(value, lang=self._language.value)
                         
-                        languages = self.language.apply_(data_source)
+                        languages = self.language.apply(data_source)
                         
                         terms = np.array([Literal(lit, lang=lang) if lit and not pd.isna(lit) else None for lit, lang in zip(terms, languages)], dtype=Literal)
                         
@@ -379,11 +331,7 @@ class ConstantLanguage(Language):
         return g
     
     
-    def apply(self, row: pd.Series = None) -> Generator:
-        
-        return self._constant
-    
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
@@ -436,39 +384,7 @@ class LanguageMap(Language):
     def map_type(self):
         return self.__map_type
         
-    def apply(self, row: pd.Series) -> np.ndarray:
-        
-        predicate = None
-        
-        if self._reference is not None:
-            if self._reference.value in row._asdict():
-                v = self._reference.value.replace(r' ', '_')
-                value = getattr(row, v)
-            else:
-                value = None
-        elif self._template is not None:
-            
-            #value = TermUtils.eval_template(self._expression, row, True)
-            value = self._expression.eval(row, True)
-            
-        elif self._constant is not None:
-            
-            value = self._constant
-                
-        
-        if value != value:
-            predicate = None
-        else:
-            
-            if isinstance(predicate, URIRef):
-                predicate = value
-            else:
-                predicate = URIRef(value)
-        
-        return np.array(predicate)
-    
-    
-    def apply_(self, data_source: DataSource) -> np.array:
+    def apply(self, data_source: DataSource) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
@@ -498,7 +414,7 @@ class LanguageMap(Language):
                 terms = np.array([self.value for x in range(n_rows)])
                 
             elif self.map_type == Literal("functionmap") and self._function_map:
-                terms = self._function_map.apply_(data_source)
+                terms = self._function_map.apply(data_source)
             
             else:
                 terms = None
@@ -569,11 +485,7 @@ class ConstantPredicate(Predicate):
         return g
     
     
-    def apply(self, row: pd.Series) -> np.ndarray:
-        
-        return self._constant
-    
-    def apply_(self, data_source: DataSource) -> np.array:
+    def apply(self, data_source: DataSource) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
@@ -637,13 +549,13 @@ class PredicateMap(Predicate):
         return self.__predicate_expression_type
     
     
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
         else:
             if self._predicate_ref_type == Literal("functionmap") and self.function_map:
-                terms = self.function_map.apply_(data_source, rdf_term_type=URIRef)
+                terms = self.function_map.apply(data_source, rdf_term_type=URIRef)
                 
             else:
                 if self.predicate_expression_type == Literal("template"):
@@ -670,32 +582,7 @@ class PredicateMap(Predicate):
         
             return terms
         
-    def apply(self, row: pd.Series = None) -> Generator:
-        
-        value = None
-        
-        if self._predicate_ref_type == Literal("functionmap") and self.function_map:
-            return self.function_map.apply(row, rdf_term_type=URIRef)
-            
-        else:
-            if self.predicate_expression_type == Literal("template"):
-                value = Expression.create(self.predicate_expression).eval(row, True)
-            elif self.predicate_ref_type == Literal("constant"):
-                value = self.predicate_expression
-            elif self.predicate_ref_type == Literal("reference"):
-                v = self.predicate_expression.value.replace(r' ', '_')
-                value = getattr(row, v)
-        
-            if value != value:
-                predicate = None
-            else:
-                
-                if isinstance(value, URIRef):
-                    predicate = value
-                else:
-                    predicate = URIRef(value)
-            
-            return predicate
+    
         
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> Set[TermMap]:
@@ -802,33 +689,14 @@ class PredicateObjectMap(AbstractMap):
     def object_maps(self) -> List[ObjectMap]:
         return self.__object_maps
     
-    def apply(self, row: pd.Series = None) -> Generator:
-        
-        preds = list([pm.apply(row) for pm in self._predicates])
-        
-        #l = []
-        predicates = []
-        objects = [] 
-
-        objs = list([om.apply(row) for om in self.__object_maps])
-                
-        for _predicate in preds:
-            for _object in objs:
-                #l.append(pd.Series([_predicate, _object]))
-                predicates.append(_predicate)
-                objects.append(_object)
-        
-        return (predicates, objects)
-    
-    
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
         
         else:
-            preds = [pm.apply_(data_source) for pm in self._predicates]
-            objs = [om.apply_(data_source) for om in self.__object_maps]
+            preds = [pm.apply(data_source) for pm in self._predicates]
+            objs = [om.apply(data_source) for om in self.__object_maps]
             
             
             init = True
@@ -948,10 +816,7 @@ class Join(AbstractMap):
     def parent(self) -> Literal:
         return self.__parent
     
-    def apply(self, row: pd.Series = None)->np.ndarray:
-        return self
-    
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         return self
     
     def to_rdf(self) -> Graph:
@@ -1149,26 +1014,7 @@ class GraphMap(AbstractMap):
     def term_type(self):
         return self.__term_type
         
-    def apply(self, row: pd.Series = None) -> Generator:
-        
-        value = None
-        if self.__term_type:
-            mode = self.__term_type.value
-            if mode == 'reference':
-                if self._mapped_entity in row._asdict():
-                    me = self._mapped_entity.replace(r' ', '_')
-                    value = getattr(row, me)
-                    
-            elif mode == 'template':
-                value = TermUtils.eval_functions(self._mapped_entity, row, True)
-                
-            elif mode == 'constant':
-                value = self._mapped_entity
-                
-        return URIRef(value) 
-    
-    
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
@@ -1193,7 +1039,7 @@ class GraphMap(AbstractMap):
                 terms = np.array([self._mapped_entity for x in range(n_rows)])
                 
             elif self.term_type == Literal("functionmap") and self._function_map:
-                terms = self._function_map.apply_(data_source)
+                terms = self._function_map.apply(data_source)
             
             else:
                 terms = None
@@ -1268,14 +1114,14 @@ class SubjectMap(AbstractMap):
     def term_type(self) -> Literal:
         return self.__term_type
                 
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
         else:
             
             if self.term_type == Literal("functionmap") and self.function_map:
-                terms = self.function_map.apply_(data_source, rdf_term_type=URIRef)
+                terms = self.function_map.apply(data_source, rdf_term_type=URIRef)
             else:
                 if self.term_type == Literal("template"):
                     terms  = Expression.create(self.value).eval_(data_source, True)
@@ -1300,48 +1146,6 @@ class SubjectMap(AbstractMap):
             AbstractMap.get_rml_converter().mappings[self] = terms
             return terms
     
-    
-    def __apply_(self, row: tuple, columns):
-        term = None
-        if self.term_type == Literal("template"):
-            term = Expression.create(self.value).eval(row, True)
-        elif self.term_type == Literal("reference"):
-            v = self.value.replace(r' ', '_')
-            term = URIRef(getattr(row, v))
-        elif self.term_type == Literal("constant"):
-            term = self.value
-        
-        if isinstance(term, str):
-            URIRef(term)
-        
-        out = term
-    
-    def apply(self, row: pd.Series = None) -> Generator:
-        
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
-        else:
-        
-            if self.term_type == Literal("functionmap") and self.function_map:
-                out = self.function_map.apply(row, rdf_term_type=URIRef)
-            else:
-                term = None
-                if self.term_type == Literal("template"):
-                    term = Expression.create(self.value).eval(row, True)
-                elif self.term_type == Literal("reference"):
-                    v = self.value.replace(r' ', '_')
-                    term = URIRef(getattr(row, v))
-                elif self.term_type == Literal("constant"):
-                    term = self.value
-                
-                if isinstance(term, str):
-                    URIRef(term)
-                
-                out = term
-            
-            AbstractMap.get_rml_converter().mappings[self] = out
-            return out
-        
     
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
@@ -1409,56 +1213,7 @@ class FunctionMap(AbstractMap):
         for pom in self._poms:
             graph_add_all(g, pom.to_rdf())
         
-    def apply(self, row: pd.Series = None, **kwargs) -> Generator:
-        
-        function_ref = None
-        input_args = dict()
-        
-        #if 'rdf_term_type' in kwargs:
-        
-        
-        for pom in self._poms:
-            
-            pom: PredicateObjectMap = pom
-            
-            pred_obj_pair = pom.apply(row)
-            
-            predicate = pred_obj_pair[0][0]
-            object_map = pred_obj_pair[1][0]
-             
-            if predicate == rml_vocab.EXECUTES:
-                function_ref = object_map.value
-            else:
-                _arg = str(predicate)
-                if _arg in input_args:
-                    if isinstance(input_args[_arg], list):
-                        input_args[_arg].append(str(object_map))
-                    else:
-                        input_args[_arg] = [input_args[_arg], str(object_map)]
-                else:
-                    input_args[_arg] = str(object_map)
-        
-        if function_ref:
-            if AbstractMap.get_rml_converter().has_registerd_function(function_ref):
-                fun = AbstractMap.get_rml_converter().get_registerd_function(function_ref)
-                
-                if 'rdf_term_type' in kwargs:
-                    try:
-                        return kwargs['rdf_term_type'](fun.evaluate(input_args))
-                    except Exception as e:
-                        pass
-                    
-                else:
-                    return fun.evaluate(input_args)
-                    
-            
-            else:
-                raise FunctionNotRegisteredException(function_ref)
-        else:
-            raise NoneFunctionException()
-        
-        
-    def apply_(self, data_source: DataSource = None, **kwargs) -> np.array:
+    def apply(self, data_source: DataSource = None, **kwargs) -> np.array:
         
         
         class Function:
@@ -1516,7 +1271,7 @@ class FunctionMap(AbstractMap):
             
             pom_matrix : np.array = None
             
-            pom_applied = [pom.apply_(data_source) for pom in self._poms]
+            pom_applied = [pom.apply(data_source) for pom in self._poms]
             try:
                 pom_matrix = np.concatenate((pom_applied), axis=1)    
             except Exception as e:
@@ -1658,7 +1413,7 @@ class TripleMappings(AbstractMap):
     
     
     
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         start_time = time.time()
         msg = "\t TripleMapping %s" % self._id
         #print(msg)
@@ -1670,11 +1425,11 @@ class TripleMappings(AbstractMap):
                 
                 data_source = DataSource(df)
                 
-                sbj_maps = [subject_map.apply_(data_source) for subject_map in self.subject_maps]
+                sbj_maps = [subject_map.apply(data_source) for subject_map in self.subject_maps]
                 
                 grfs = [graph for graph in [graphs for graphs in [subject_map.graph_maps for subject_map in self.subject_maps]]]
                 
-                graph_maps = [graph_map.apply_(data_source) for subject_map in self.subject_maps for graph_map in subject_map.graph_maps]
+                graph_maps = [graph_map.apply(data_source) for subject_map in self.subject_maps for graph_map in subject_map.graph_maps]
                 
                 
                 for sbj_representation in sbj_maps:
@@ -1717,7 +1472,7 @@ class TripleMappings(AbstractMap):
                                                         
                                                         df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
                                                     
-                                                        pom_representation = pom.apply_(DataSource(df_join))
+                                                        pom_representation = pom.apply(DataSource(df_join))
                                                         
                                     else:
                                 
@@ -1730,7 +1485,7 @@ class TripleMappings(AbstractMap):
                                                 if pandas_condition:
                                                     df_pom = df[eval(pandas_condition)]
                                                     
-                                                    pom_representation = pom.apply_(DataSource(df_pom))
+                                                    pom_representation = pom.apply(DataSource(df_pom))
                                                     
                                                         
                                         
@@ -1738,7 +1493,7 @@ class TripleMappings(AbstractMap):
                                             
                                             
                                         ''' 
-                                        pom_representation = pom.apply_(data_source)   
+                                        pom_representation = pom.apply(data_source)   
                                             
                                     if pom_representation is not None:
                                         #results: pd.DataFrame = pd.concat([sbj_representation, pom_representation], axis=1, sort=False)
@@ -1792,296 +1547,6 @@ class TripleMappings(AbstractMap):
         return triples.to_numpy(dtype=Node)  
     
          
-    def apply(self, row: pd.Series = None) -> Generator:
-        start_time = time.time()
-        msg = "\t TripleMapping %s" % self._id
-        #print(msg)
-        
-        triples = []
-        for logical_source in self.logical_sources:
-            
-            for df in logical_source.apply():
-                
-                for subject_map in self.subject_maps:
-                    sbj_representation = pd.DataFrame([subject_map.apply(row) for row in df.itertuples()])
-                    
-                    if self.predicate_object_maps is not None:
-                        
-                        results = None
-                        
-                        for pom in self.predicate_object_maps:
-                            try:
-                                for object_map in pom.object_maps:
-                                    if isinstance(object_map, ReferencingObjectMap) and object_map.join_conditions:
-                                        df_left = df
-                                        df_left["__pyrml_sbj_representation__"] = sbj_representation
-                                        parent_triple_mappings = object_map.parent_triples_maps
-                                        
-                                        
-                                        results = pd.DataFrame(columns=['0_l', '0_r'])
-                                        
-                                        for parent_triple_mapping in parent_triple_mappings:
-                                            for parent_logical_source in parent_triple_mapping.logical_sources:
-                                                
-                                                for df_right in parent_logical_source.apply():
-                                                
-                                                    pandas_condition = parent_triple_mapping.condition
-                                                    if pandas_condition:
-                                                        df_right = df_right[eval(pandas_condition)]
-                                                        
-                                                    join_conditions = object_map.join_conditions
-                                                    
-                                                    left_ons = []
-                                                    right_ons = []
-                                                    
-                                                    for join_condition in join_conditions:
-                                                        left_ons.append(join_condition.child.value)
-                                                        right_ons.append(join_condition.parent.value)
-                                                    
-                                                    if not df_left.empty and not df_right.empty:
-                                                        
-                                                        df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
-                                                    
-                                                        #pom_representation = pd.DataFrame([pom.apply(row) for row in df_join.itertuples()])
-                                                        pom_representation = pd.Series([pom.apply(row) for row in df_join.itertuples()])
-                                                        
-                                                        #pom_representation = df_join.apply(pom.apply, axis=1)
-                                                        
-                                                        tmp = pd.concat([df_join["__pyrml_sbj_representation__"], pom_representation], axis=1, sort=False)
-                                                        tmp.columns = ['s', 'p_o']
-                                                        
-                                                        results = pd.concat([results, tmp], axis=0, sort=False)
-                                                        triples += self.__apply(results, subject_map.graph_maps)
-                                
-                                    else:
-                                
-                                        pom_representation = None
-                                        if isinstance(object_map, ReferencingObjectMap):
-                                            for ptm in object_map.parent_triples_maps:
-                                                
-                                                pandas_condition = ptm.condition
-                                                if pandas_condition:
-                                                    df_pom = df[eval(pandas_condition)]
-                                                    df_pom = pd.Series([pom.apply(row) for row in df_pom.itertuples()])
-                                                    if not pom_representation:
-                                                        pom_representation = df_pom
-                                                    else:
-                                                        pom_representation = pd.concat([pom_representation, df_pom], axis=0, sort=False)
-                                                        
-                                        here = False
-                                        if pom_representation is None:
-                                            
-                                            r = [pom.apply(row) for row in df.itertuples()]
-                                            
-                                            pom_representation = pd.DataFrame(r)
-                                            #v = [item for item in r]
-                                            #pom_representation = pd.concat([pom_representation, pd.Series(v)], axis=0, sort=False)
-                                            #pom_representation = pd.concat([pom_representation, pd.Series(v)], axis=0, sort=False)
-                                            
-                                            
-                                        if pom_representation is not None and not pom_representation.empty:
-                                            results: pd.DataFrame = pd.concat([sbj_representation, pom_representation], axis=1, sort=False)
-                                            try:
-                                                results.dropna(inplace=True)
-                                                results.columns = ['s', 'p', 'o']
-                                                
-                                            except Exception as e:
-                                                #for row in results.itertuples():
-                                                #    print(row)
-                                                #if here:
-                                                #    print(r)
-                                                raise e
-                                            
-                                            triples += self.__apply(results, subject_map.graph_maps)
-                                            
-                                            
-                            
-                            except Exception as e:
-                                raise e
-                    
-                
-        
-        elapsed_time_secs = time.time() - start_time
-        
-        #msg = "\t Triples Mapping %s: %s secs" % (self._id, elapsed_time_secs)
-        msg = "\t\t done in %s secs" % (elapsed_time_secs)
-        return triples  
-        
-        
-    def apply_old(self, row: pd.Series = None) -> Generator:
-        start_time = time.time()
-        msg = "\t TripleMapping %s" % self._id
-        #print(msg)
-        
-        for logical_source in self.__logical_sources:
-            
-            for df in logical_source.apply():
-                
-                if self.__condition is not None and self.__condition.strip() != '':
-                    df = df[eval(self.__condition)]
-                    
-                for subject_map in self.subject_maps:
-                    
-                    d = [subject_map.apply(row) for row in df.itertuples()]
-                    sbj_representation = pd.DataFrame(d)
-                    
-                    if sbj_representation is not None and not sbj_representation.empty:
-                                                                 
-                        if self.predicate_object_maps is not None:
-                            
-                            results = None
-                            
-                            for pom in self.predicate_object_maps:
-                                try:
-                                    for object_map in pom.object_maps:
-                                        if isinstance(object_map, ReferencingObjectMap) and object_map.join_conditions:
-                                            df_left = df
-                                            df_left["__pyrml_sbj_representation__"] = sbj_representation
-                                            parent_triple_mappings = object_map.parent_triples_maps
-                                            
-                                            
-                                            results = pd.DataFrame(columns=['0_l', '0_r'])
-                                            
-                                            for parent_triple_mapping in parent_triple_mappings:
-                                                for parent_logical_source in parent_triple_mapping.logical_sources:
-                                                    
-                                                    for df_right in parent_logical_source.apply():
-                                                    
-                                                        pandas_condition = parent_triple_mapping.condition
-                                                        if pandas_condition:
-                                                            df_right = df_right[eval(pandas_condition)]
-                                                            
-                                                        join_conditions = object_map.join_conditions
-                                                        
-                                                        left_ons = []
-                                                        right_ons = []
-                                                        
-                                                        for join_condition in join_conditions:
-                                                            left_ons.append(join_condition.child.value)
-                                                            right_ons.append(join_condition.parent.value)
-                                                        
-                                                        if not df_left.empty and not df_right.empty:
-                                                            
-                                                            df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
-                                                        
-                                                            pom_representation = pd.DataFrame([pom.apply(row) for row in df_join.itertuples()])
-                                                            #pom_representation = df_join.apply(pom.apply, axis=1)
-                                                            
-                                                            tmp = pd.concat([df_join["__pyrml_sbj_representation__"], pom_representation], axis=1, sort=False)
-                                                            tmp.columns = ['0_l', '0_r']
-                                                            
-                                                            results = pd.concat([results, tmp], axis=0, sort=False)
-                                                        
-                                                            yield from self.__apply(results, subject_map.graph_maps)
-                                    
-                                        else:
-                                    
-                                            pom_representation = None
-                                            if isinstance(object_map, ReferencingObjectMap):
-                                                for ptm in object_map.parent_triples_maps:
-                                                    
-                                                    pandas_condition = ptm.condition
-                                                    if pandas_condition:
-                                                        df_pom = df[eval(pandas_condition)]
-                                                        df_pom = pd.DataFrame([pom.apply(row) for row in df_pom.itertuples()])
-                                                        if not pom_representation:
-                                                            pom_representation = df_pom
-                                                        else:
-                                                            pom_representation = pd.concat([pom_representation, df_pom], axis=0, sort=False)
-                                            
-                                            if pom_representation is None:
-                                                
-                                                r = [pom.apply(row) for row in df.itertuples()]
-                                                
-                                                pom_representation = pd.DataFrame()
-                                                v = [item for item in r]
-                                                pom_representation = pd.concat([pom_representation, pd.Series(v)], axis=0, sort=False)
-                                                
-                                                
-                                            if pom_representation is not None and not pom_representation.empty:
-                                                results = pd.concat([sbj_representation, pom_representation], axis=1, sort=False)
-                                                
-                                                results.columns = ['0_l', '0_r']
-                                                
-                                                yield from self.__apply(results, subject_map.graph_maps)
-                                                
-                                                
-                                
-                                except Exception as e:
-                                    raise e
-                
-                
-            
-        elapsed_time_secs = time.time() - start_time
-        
-        #msg = "\t Triples Mapping %s: %s secs" % (self._id, elapsed_time_secs)
-        msg = "\t\t done in %s secs" % (elapsed_time_secs)
-        #print(msg)  
-        
-    def __apply(self, df: pd.DataFrame, graph_maps : GraphMap=None):
-        df.dropna(inplace=True)
-                             
-        ret = []   
-        for row in df.values:
-            try:
-                
-                _subject = row[0]
-                _predicate = row[1][0]
-                _object = row[2][0]
-                ret += self.__apply_sub(_subject, _predicate, _object, graph_maps)
-                    
-            except Exception as e:
-                raise(e)
-            
-        return ret
-            
-    def __apply_sub(self, subj, pred, obj, graph_maps):
-        ret = []
-        if graph_maps:
-            for graph_map in graph_maps:
-                
-                _graph_ctxs: URIRef = graph_map.apply()
-                for _graph_ctx in _graph_ctxs:
-                    ret.append((subj, pred, obj, _graph_ctx))
-                
-        else:
-            ret.append((subj, pred, obj))
-            
-        return ret
-        
-    '''
-    @staticmethod
-    def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List[TermMap]:
-        
-        sparql = """
-            SELECT DISTINCT ?tm ?source ?sm ?pom ?cond
-            WHERE {
-                %PLACE_HOLDER%
-                ?tm rml:logicalSource ?source ;
-                    rr:subjectMap ?sm 
-                OPTIONAL {?tm rr:predicateObjectMap ?pom}
-                OPTIONAL {?tm crml:condition ?cond}
-            }"""
-        
-        if parent is not None:
-            sparql = sparql.replace("%PLACE_HOLDER%", "?p rr:parentTriplesMap ?tm . ")
-        else:
-            sparql = sparql.replace("%PLACE_HOLDER%", "")
-            
-        query = prepareQuery(sparql, 
-                initNs = { 
-                    "rr": rml_vocab.RR, 
-                    "rml": rml_vocab.RML,
-                    "crml": rml_vocab.CRML})
-        
-        if parent:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
-        
-        
-        return set([TripleMappings.__build(g, row) for row in qres])
-    '''
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List[TermMap]:
         
@@ -2158,23 +1623,12 @@ class ReferencingObjectMap(ObjectMap):
     def join_conditions(self) -> List[Join]:
         return self.__joins
     
-    def apply(self, row: pd.Series = None) -> Generator:
-        
-        ret = []
-        for tm in self.parent_triples_maps:
-            for subject_map in tm.subject_maps:
-                sm = subject_map.apply(row)
-                
-                ret += [sm]
-                
-        return ret
-    
-    def apply_(self, data_source: DataSource = None) -> np.array:
+    def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in AbstractMap.get_rml_converter().mappings:
             return AbstractMap.get_rml_converter().mappings[self]
         else:
-            ref = np.array([subject_map.apply_(data_source) for tm in self.parent_triples_maps for subject_map in tm.subject_maps], dtype=URIRef)
+            ref = np.array([subject_map.apply(data_source) for tm in self.parent_triples_maps for subject_map in tm.subject_maps], dtype=URIRef)
             ret = np.concatenate(ref, axis=0, dtype=URIRef)
             AbstractMap.get_rml_converter().mappings[self] = ret
             return ret
