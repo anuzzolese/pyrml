@@ -13,7 +13,7 @@ import os
 import re
 from typing import Set, Generator
 
-from lark import Lark
+from lark import Lark, Token
 from lark.visitors import Transformer
 from rdflib import URIRef, Graph, BNode, Literal, IdentifiedNode
 from rdflib.term import Node
@@ -133,15 +133,17 @@ class Funz(Evaluable):
         
         return TermUtils.irify(value) if is_iri else value
     
-    def _eval_(self, row, is_iri):
+    def _eval_(self, row, columns, is_iri):
         args = []
         for arg in self.__args:
-            if isinstance(arg, str) and arg.strip() == '*':
-                args.append(row)
-            elif isinstance(arg, str):
-                args.append(TermUtils.replace_place_holders_(arg, row, False))
+            argval = arg.value if isinstance(arg, Token) else arg
+            if isinstance(argval, str) and argval.strip() == '*':
+                _input = {col:row[val] for col, val in columns.items()}
+                args.append(_input)
+            elif isinstance(argval, str):
+                args.append(TermUtils.replace_place_holders_(argval, row, columns, False))
             else:
-                args.append(arg)
+                args.append(argval)
         value = self.__fun(*args)
         
         return TermUtils.irify(value) if is_iri else value
@@ -188,7 +190,8 @@ class Expression():
             return None
         
     def _eval_(self, row, columns, is_iri):
-        items = [item._eval_(row,   columns, is_iri) for item in self._subexprs]
+        
+        items = [item._eval_(row, columns, is_iri) for item in self._subexprs]
         try:
             value = "".join(items)
         except:
@@ -556,7 +559,7 @@ class EvalTransformer(Transformer):
         return val[0][1:-1]
     
     def placeholder(self, val):
-        return val[0]
+        return val[0][:]
     
     def number(self, val):
         return val[0]

@@ -71,8 +71,8 @@ def to_titlecase(value: str) -> str:
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_trim', 
               value='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter')
-def trim(value: str) -> str:
-    return value.strip()
+def trim(value: Literal) -> str:
+    return value.value.strip()
 
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#array_sum', 

@@ -885,8 +885,8 @@ class LogicalSource(AbstractMap):
         return self.__iterator
     
     def apply(self, row: pd.Series = None) -> Generator:
-        if self in AbstractMap.get_rml_converter().logical_sources:
-            dfs = AbstractMap.get_rml_converter().logical_sources[self]
+        if self.id in AbstractMap.get_rml_converter().logical_sources:
+            dfs = AbstractMap.get_rml_converter().logical_sources[self.id]
         else: 
             if self.__separator is None:
                 sep = ','
@@ -943,7 +943,7 @@ class LogicalSource(AbstractMap):
                 
                 dfs.append(df)
                 
-                AbstractMap.get_rml_converter().logical_sources[self] = dfs
+                AbstractMap.get_rml_converter().logical_sources[self.id] = dfs
                 
         return dfs
             
