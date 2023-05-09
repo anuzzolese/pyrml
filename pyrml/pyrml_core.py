@@ -860,7 +860,7 @@ class LogicalSource(AbstractMap):
         super().__init__(map_id, value)
         self.__separator : str = kwargs['separator'] if 'separator' in kwargs else ',' 
         self.__query : str = kwargs['query'] if 'query' in kwargs else None
-        self.__reference_formulation : URIRef = kwargs['reference_formulation'] if '__reference_formulation' in kwargs else rml_vocab.CSV
+        self.__reference_formulation : URIRef = kwargs['reference_formulation'] if 'reference_formulation' in kwargs else rml_vocab.CSV
         self.__iterator: URIRef = kwargs['iterator'] if 'iterator' in kwargs else None
         self.__sources : List[Source] = kwargs['sources'] if 'sources' in kwargs else None
         
@@ -897,7 +897,7 @@ class LogicalSource(AbstractMap):
             for source in self.sources:
                 if isinstance(source, BaseSource):
                     if self.__reference_formulation == rml_vocab.JSON_PATH and self.__iterator:
-                        json_data = json.load(source._mapped_entity)
+                        json_data = json.load(open(source._mapped_entity,mode='r',encoding='utf-8'))
                         
                         jsonpath_expr = parse(self.__iterator)
                         matches = jsonpath_expr.find(json_data)
@@ -998,7 +998,7 @@ class LogicalSource(AbstractMap):
             iterator = row.ite if row.ite else None
             rf = row.rf if row.rf else rml_vocab.CSV
             
-            ls = LogicalSource(row.ls, None, sources=sources, separator=separator, query=query, iterator=iterator, reference_formalation=rf)
+            ls = LogicalSource(row.ls, None, sources=sources, separator=separator, query=query, iterator=iterator, reference_formulation=rf)
             term_maps.append(ls)
             
         return term_maps
