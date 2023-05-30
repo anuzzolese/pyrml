@@ -5,7 +5,8 @@ __version__ = "0.2.9"
 __status__ = "Alpha"
 
 import logging
-import multiprocessing
+from multiprocessing import cpu_count
+from multiprocessing.pool import ThreadPool
 import os
 import time
 from typing import Dict, Generator, Union, List
@@ -117,11 +118,15 @@ class RMLConverter():
         
         g = ConjunctiveGraph()
         
+        
+        print(f'The RML mapping contains {len(triple_mappings)} triple mappings.')
+        start_time = time.time()
         if multiprocessed:
-            processes = multiprocessing.cpu_count()
+            start_time = time.time()
+            processes = cpu_count()
         
             tms = np.array_split(np.array(list(triple_mappings)), processes)
-            pool = multiprocessing.Pool(initializer=initializer, initargs=(RMLConverter.__instance,), processes=processes)
+            pool = ThreadPool(initializer=initializer, initargs=(RMLConverter.__instance,), processes=processes)
             tuples_collection = pool.map(pool_map, tms)
             pool.close()
             pool.join()
@@ -132,9 +137,6 @@ class RMLConverter():
                     g.add(_tuple)
         
         else:
-            print(f'The RML mapping contains {len(triple_mappings)} triple mappings.')
-            start_time = time.time()
-            
             for tm in triple_mappings:
                 for _tuple in tm.apply():
                     #print(f'TUPLE {_tuple}')
