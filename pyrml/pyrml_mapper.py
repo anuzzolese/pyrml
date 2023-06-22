@@ -65,8 +65,9 @@ class RMLConverter():
         self.__mappings = dict()
         
         self.subject_map_representations = dict()
-        global __instance
-        __instance = self
+        #global __instance
+        RMLConverter.__instance = self
+        
         
     @property
     def mappings(self):
@@ -84,7 +85,7 @@ class RMLConverter():
     @classmethod
     def get_instance(cls):
         if cls.__instance is None:
-            RMLConverter.__instance = RMLConverter()
+            cls.__instance = RMLConverter()
         
         return cls.__instance
         
@@ -158,7 +159,7 @@ class RMLConverter():
                             raise e
             
         elapsed_time_secs = time.time() - start_time
-        print(f'Mapping computed in {elapsed_time_secs} secs')
+        print(f'Mapping computed in {elapsed_time_secs} secs producing {len(g)} triples.')
         return g
     
     
@@ -185,10 +186,10 @@ class RMLConverter():
         g = ConjunctiveGraph()
         
         if multiprocessed:
-            processes = multiprocessing.cpu_count()
+            processes = cpu_count()
         
             tms = np.array_split(np.array(list(triple_mappings)), processes)
-            pool = multiprocessing.Pool(initializer=initializer, initargs=(RMLConverter.__instance,), processes=processes)
+            pool = ThreadPool(initializer=initializer, initargs=(RMLConverter.__instance,), processes=processes)
             tuples_collection = pool.map(pool_map, tms)
             pool.close()
             pool.join()

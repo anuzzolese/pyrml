@@ -232,9 +232,7 @@ def concat(string1: str, string2: str, delimiter: str = '') -> str:
               match='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_find',
               replace='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_replace')
 def string_replace(string: str, match: str, replace: str) -> str:
-    print('èè')
     x = string.replace(match, replace)
-    print('àà')
     return x
 
 
@@ -297,7 +295,8 @@ def last_index_of(string: str, substring: str) -> int:
               separator='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
 def array_join(arr: List[str], separator: str = '') -> str:
     not_none = lambda x : x and x != Literal('None') and x != Literal('nan')
-    return separator.join(filter(not_none, arr)) if isinstance(arr, list) else arr
+    return separator.join(filter(not_none, arr)) if isinstance(arr, list) else separator.join(list(arr.value))
+    
 
 @rml_function(fun_id='http://example.com/idlab/function/inRange', 
               test='http://example.com/idlab/function/p_test',
@@ -370,6 +369,10 @@ def string_sha1(value: str) -> str:
               from_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_from',
               to_i='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_opt_to')
 def array_slice(arr: List[T], from_i: int = None, to_i: int = None) -> List[T]:
+    
+    arr = list(arr.value)
+    from_i = int(from_i)
+    to_i = int(to_i)
     return arr[from_i:to_i]
 
 
@@ -389,3 +392,10 @@ def rml_slugify(string: str) -> str:
               string='http://example.com/idlab/function/str')
 def true_condition(b_expr: bool, string: str) -> str:
     return string if b_expr.value else None
+
+@rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_split',
+              value_parameter='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter',
+              p_string_sep='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
+def string_split(value_parameter: str, p_string_sep: str):
+    
+    return value_parameter.split(p_string_sep)

@@ -1127,9 +1127,8 @@ class SubjectMap(AbstractMap):
                     terms  = Expression.create(self.value).eval_(data_source, True)
                    
                 elif self.term_type == Literal("reference"):
-                    index = data_source.columns[self.value.value]
-                
-                    data = data_source.data[index]
+                    
+                    data = data_source.dataframe[self.value.value]
                 
                     l = lambda val : URIRef(TermUtils.irify(val)) if val else None
                 
