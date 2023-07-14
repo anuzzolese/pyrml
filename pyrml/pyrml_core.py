@@ -884,7 +884,7 @@ class LogicalSource(AbstractMap):
     def iterator(self) -> URIRef:
         return self.__iterator
     
-    def apply(self, row: pd.Series = None) -> Generator:
+    def apply(self, row: pd.Series = None) -> DataFrame:
         if self.id in AbstractMap.get_rml_converter().logical_sources:
             dfs = AbstractMap.get_rml_converter().logical_sources[self.id]
         else: 
@@ -1421,6 +1421,9 @@ class TripleMappings(AbstractMap):
         for logical_source in self.logical_sources:
             
             for df in logical_source.apply():
+                
+                if self.condition:
+                    df = df[eval(self.condition)]
                 
                 data_source = DataSource(df)
                 

@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 import hashlib
 import os
 import re
-from typing import Set, Generator
+from typing import Set
 
 from lark import Lark, Token
 from lark.visitors import Transformer
@@ -83,7 +83,7 @@ class TermMap(ABC):
     
     @abstractmethod
     @multigen
-    def apply(self, row: pd.Series = None) -> Generator:
+    def apply(self, row: pd.Series = None) -> object:
         pass
     
     @staticmethod
