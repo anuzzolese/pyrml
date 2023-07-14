@@ -1586,6 +1586,9 @@ class TripleMappings(AbstractMap):
         subject_maps: List[SubjectMap] = SubjectMap.from_rdf(g, row.tm)
         
         predicate_object_maps = PredicateObjectMap.from_rdf(g, row.tm)
+        
+        condition = g.value(row.tm, URIRef(rml_vocab.CRML+'condition'), None)
+        
         '''
         if row.pom:
             predicate_object_maps = PredicateObjectMap.from_rdf(g, row.tm)
@@ -1605,7 +1608,7 @@ class TripleMappings(AbstractMap):
                 predicate_object_maps.append(pom)
             
                      
-        return TripleMappings(row.tm, None, sources=sources, subject_maps=subject_maps, predicate_object_maps=predicate_object_maps)
+        return TripleMappings(row.tm, None, sources=sources, subject_maps=subject_maps, predicate_object_maps=predicate_object_maps, condition=condition)
         
     
     
