@@ -17,6 +17,7 @@ from rdflib.term import Node, BNode, Literal, Identifier
 import numpy as np
 import pandas as pd
 import pyrml.rml_vocab as rml_vocab
+from h11._abnf import chunk_size
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
@@ -1511,31 +1512,33 @@ class TripleMappings(AbstractMap):
                                         
                                         chunk_size = len(sbjs)
                                         
-                                        for i in range(0, end, chunk_size):
-                                            triples_representation = [[s, p_o[0], p_o[1]] for s, p_o in zip(sbjs, pom_representation[i:i+chunk_size])]
-                                            
-                                            
-                                            if len(graph_maps) > 0:
-                                                #triples_representation = [[s, p, o, ctx] for ctx in graph_maps for s, p, o in triples_representation]
+                                        if chunk_size > 0:
+                                        
+                                            for i in range(0, end, chunk_size):
+                                                triples_representation = [[s, p_o[0], p_o[1]] for s, p_o in zip(sbjs, pom_representation[i:i+chunk_size])]
                                                 
-                                                for gmaps in graph_maps:
-                                                    g_end = len(gmaps)
+                                                
+                                                if len(graph_maps) > 0:
+                                                    #triples_representation = [[s, p, o, ctx] for ctx in graph_maps for s, p, o in triples_representation]
                                                     
-                                                    for k in range(0, g_end, chunk_size):
-                                                        triples_representation = [[t[0], t[1], t[2], g] for t, g in zip(triples_representation, gmaps[k:k+chunk_size])]
+                                                    for gmaps in graph_maps:
+                                                        g_end = len(gmaps)
                                                         
-                                                        triples_df = pd.DataFrame(triples_representation, columns=['s', 'p', 'o', 'ctx'])
-                                                        triples_df.dropna(inplace=True)
+                                                        for k in range(0, g_end, chunk_size):
+                                                            triples_representation = [[t[0], t[1], t[2], g] for t, g in zip(triples_representation, gmaps[k:k+chunk_size])]
+                                                            
+                                                            triples_df = pd.DataFrame(triples_representation, columns=['s', 'p', 'o', 'ctx'])
+                                                            triples_df.dropna(inplace=True)
+                                                        
+                                                            triples = pd.concat([triples, triples_df], axis=0)
+                                                        
                                                     
-                                                        triples = pd.concat([triples, triples_df], axis=0)
+                                                else:
+                                                
+                                                    triples_df = pd.DataFrame(triples_representation, columns=['s', 'p', 'o'])
+                                                    triples_df.dropna(inplace=True)
                                                     
-                                                
-                                            else:
-                                            
-                                                triples_df = pd.DataFrame(triples_representation, columns=['s', 'p', 'o'])
-                                                triples_df.dropna(inplace=True)
-                                                
-                                                triples = pd.concat([triples, triples_df], axis=0)
+                                                    triples = pd.concat([triples, triples_df], axis=0)
                                             
                             
                             except Exception as e:
