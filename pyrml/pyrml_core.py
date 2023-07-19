@@ -1447,7 +1447,7 @@ class TripleMappings(AbstractMap):
                                     df_join = None
                                     if isinstance(object_map, ReferencingObjectMap) and object_map.join_conditions:
                                         df_left = df
-                                        df_left["__pyrml_sbj_representation__"] = sbj_representation
+                                        df_left.loc[:, ('__pyrml_sbj_representation__')] = sbj_representation
                                         parent_triple_mappings = object_map.parent_triples_maps
                                         
                                         
@@ -1458,9 +1458,10 @@ class TripleMappings(AbstractMap):
                                                 
                                                 for df_right in parent_logical_source.apply():
                                                     
+                                                    df = df_right
                                                     pandas_condition = parent_triple_mapping.condition
                                                     if pandas_condition:
-                                                        df_right = df_right[eval(pandas_condition)]
+                                                        df = df[eval(pandas_condition)]
                                                         
                                                     join_conditions = object_map.join_conditions
                                                     
@@ -1471,9 +1472,9 @@ class TripleMappings(AbstractMap):
                                                         left_ons.append(join_condition.child.value)
                                                         right_ons.append(join_condition.parent.value)
                                                     
-                                                    if not df_left.empty and not df_right.empty:
+                                                    if not df_left.empty and not df.empty:
                                                         
-                                                        df_join = df_left.merge(df_right, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
+                                                        df_join = df_left.merge(df, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
                                                     
                                                         pom_representation = pom.apply(DataSource(df_join))
                                                         
