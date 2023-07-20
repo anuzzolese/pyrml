@@ -17,7 +17,6 @@ from rdflib.term import Node, BNode, Literal, Identifier
 import numpy as np
 import pandas as pd
 import pyrml.rml_vocab as rml_vocab
-from h11._abnf import chunk_size
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
