@@ -1446,7 +1446,7 @@ class TripleMappings(AbstractMap):
                                     df_join = None
                                     if isinstance(object_map, ReferencingObjectMap) and object_map.join_conditions:
                                         df_left = df
-                                        df_left.loc[:, ('__pyrml_sbj_representation__')] = sbj_representation
+                                        df_left.['__pyrml_sbj_representation__'] = sbj_representation
                                         parent_triple_mappings = object_map.parent_triples_maps
                                         
                                         
