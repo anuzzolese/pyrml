@@ -1457,6 +1457,7 @@ class TripleMappings(AbstractMap):
                                                 
                                                 for df_right in parent_logical_source.apply():
                                                     
+                                                    df_tmp = df
                                                     df = df_right
                                                     pandas_condition = parent_triple_mapping.condition
                                                     if pandas_condition:
@@ -1476,6 +1477,8 @@ class TripleMappings(AbstractMap):
                                                         df_join = df_left.merge(df, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
                                                     
                                                         pom_representation = pom.apply(DataSource(df_join))
+                                                        
+                                                    df = df_tmp
                                                         
                                     else:
                                 

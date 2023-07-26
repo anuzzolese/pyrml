@@ -65,8 +65,8 @@ class RMLConverter():
         self.__mappings = dict()
         
         self.subject_map_representations = dict()
-        #global __instance
-        RMLConverter.__instance = self
+        global __instance
+        __instance = self
         
         
     @property
