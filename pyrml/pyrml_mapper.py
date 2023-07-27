@@ -68,6 +68,19 @@ class RMLConverter():
         global __instance
         __instance = self
         
+    def reset(self):
+        del(self.__function_registry)
+        del(self.__mapping_dict)
+        del(self.__loaded_logical_sources)
+        del(self.__mappings)
+        del(self.subject_map_representations)
+        
+        self.__function_registry = dict()
+        self.__mapping_dict = MappingsDict()
+        self.__loaded_logical_sources = dict()
+        self.__mappings = dict()
+        self.subject_map_representations = dict()
+        
         
     @property
     def mappings(self):

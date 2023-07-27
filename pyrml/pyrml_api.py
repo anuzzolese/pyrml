@@ -106,6 +106,7 @@ class Funz(Evaluable):
     def __init__(self, fun, args):
         self.__fun = fun
         self.__args = args
+        
     
     def eval(self, row, is_iri):
         args = []
@@ -535,9 +536,7 @@ class EvalTransformer(Transformer):
         #return "%s(%s)"(fun[0],*fun[1])
     
     def f_name(self, name):
-        from pyrml.pyrml_mapper import RMLConverter 
-        
-        rml_converter = RMLConverter.get_instance()
+        rml_converter = AbstractMap.get_rml_converter().get_instance()
         if rml_converter.has_registerd_function(name[0]):
             fun = rml_converter.get_registerd_function(name[0])
             name[0] = fun.__qualname__
