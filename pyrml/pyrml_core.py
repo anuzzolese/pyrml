@@ -1130,7 +1130,7 @@ class SubjectMap(AbstractMap):
                     
                     data = data_source.dataframe[self.value.value]
                 
-                    l = lambda val : URIRef(TermUtils.irify(val)) if val else None
+                    l = lambda val : URIRef(TermUtils.irify(val)) if val and isinstance(val, str) else None
                 
                     terms = np.array([l(term) for term in data], dtype=URIRef)
                      
