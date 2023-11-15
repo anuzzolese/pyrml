@@ -512,6 +512,8 @@ class TermUtils():
                 string = re.sub(r'(\-)+', '_', string);
                 string = re.sub(r'(\_)+', '_', string);
                 
+            string = re.sub(r'(<)', '%3C', string);
+            string = re.sub(r'(>)', '%3E', string);
         return string
     
 class EvalParser():

@@ -5,12 +5,12 @@ from pyrml import rml_vocab
 import time
 from typing import Dict, Union, Set, List, Type, Generator
 
-from SPARQLWrapper import SPARQLWrapper
+from SPARQLWrapper import SPARQLWrapper, CSV, JSON, XML, TSV
 from jsonpath_ng import parse
 from pandas.core.frame import DataFrame
 from pyrml.pyrml_api import DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException
 from rdflib import URIRef, Graph, IdentifiedNode
-from rdflib.namespace import RDF
+from rdflib.namespace import RDF, Namespace
 from rdflib.plugins.sparql.processor import prepareQuery
 from rdflib.term import Node, BNode, Literal, Identifier
 
@@ -240,7 +240,7 @@ class TermObjectMap(ObjectMap):
                         
                     else:
                         
-                        l = lambda term: URIRef(term) if term and not pd.isna(term) else term
+                        l = lambda term: URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
                         terms = np.array([l(term) for term in terms], dtype=URIRef)
                         
             
@@ -914,10 +914,18 @@ class LogicalSource(AbstractMap):
                     
                     sparql = SPARQLWrapper(source.endpoint)
                     sparql.setQuery(self.__query)
-            
-                    sparql.setReturnFormat(source.result_format)
+                    
+                    if source.result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_CSV'):
+                        sparql.setReturnFormat(CSV)
+                    elif source.result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_TSV'):
+                        sparql.setReturnFormat(TSV)
+                    elif source.result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_XML'):
+                        sparql.setReturnFormat(XML)
+                    else:
+                        sparql.setReturnFormat(JSON)
+                    
                     rs = sparql.queryAndConvert()
-            
+                    
                     if source.result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_CSV'):
                         df = pd.read_csv(BytesIO(rs), sep=',', dtype=str)
                     elif source.result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_TSV'):
@@ -929,8 +937,8 @@ class LogicalSource(AbstractMap):
         
                         data = [match.value for match in matches]
                         df = pd.json_normalize(data)
-            
-                    elif self.__result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_XML') and self.__iterator:
+                        
+                    elif source.result_format == URIRef('http://www.w3.org/ns/formats/SPARQL_Results_XML') and self.__iterator:
                         df = pd.read_xml(BytesIO(rs), xpath=self.__iterator, dtype=str)
                         
                     else:
@@ -1825,27 +1833,19 @@ class SPARQLSource(Source):
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode) -> 'TableSource':
         
-        csvw = 'http://www.w3.org/ns/csvw#'
+        sd = Namespace('http://www.w3.org/ns/sparql-service-description#')
+        w3_formats = Namespace('http://www.w3.org/ns/formats/')
         
-        dialect = URIRef(csvw+'dialect')
-        
-        urls = g.objects(parent, URIRef(csvw+'url'), True)
-        if urls and len(urls) > 0:
-            url = urls[0].value
+        endpoint = g.value(parent, sd.endpoint, None, True)
+        if endpoint:
             
-            delimiters = g.objects(parent, (dialect/URIRef(csvw+'delimiter')), True)
-            if delimiters and len(delimiters) > 0:
-                delimiter = delimiters[0].value
-            else:
-                delimiter = ','
+            supported_language = g.value(parent, sd.supportedLanguage, None, True)
+            supported_language = supported_language if supported_language else sd.SPARQL11Query
                 
-            encodings = g.objects(parent, (dialect/URIRef(csvw+'encoding')), True)
-            if encodings and len(encodings) > 0:
-                encoding = encodings[0].value
-            else:
-                encoding = 'UTF-8'
+            result_format = g.value(parent, sd.resultFormat, None, True)
+            result_format = result_format if result_format else w3_formats.SPARQL_Results_JSON
                 
-            return CSVSource(parent, url, delimiter=delimiter, encoding=encoding)
+            return SPARQLSource(parent, endpoint, endpoint=endpoint, supported_language=supported_language, result_format=result_format)
                 
         else:
             return None
