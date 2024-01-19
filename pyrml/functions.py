@@ -222,8 +222,8 @@ def string_contains(string: str, substring: str) -> bool:
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#string_substring', 
               valueParameter='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter',
-              i_from='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_from',
-              i_to='http://users.ugent.be/~bjdmeest/function/grel.ttl#param_int_i_opt_to')
+              i_from='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_int_i_from',
+              i_to='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_int_i_opt_to')
 def substring(valueParameter: str, i_from: int=None, i_to: int= None) -> str:
     i_from = i_from if i_from else 0
     i_to = i_to if i_to else len(valueParameter)
