@@ -60,6 +60,8 @@ CSV = URIRef(QL + "CSV")
 
 JSON_PATH = URIRef(QL + "JSONPath")
 
+XML = URIRef(QL + "XML")
+
 REFERENCE_FORMULATION = URIRef(RML + "referenceFormulation")
 
 ITERATOR = URIRef(RML + "iterator")

@@ -17,6 +17,7 @@ from rdflib.term import Node, BNode, Literal, Identifier
 import numpy as np
 import pandas as pd
 import pyrml.rml_vocab as rml_vocab
+import xml.etree.ElementTree as ET
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
@@ -884,6 +885,25 @@ class LogicalSource(AbstractMap):
     def iterator(self) -> URIRef:
         return self.__iterator
     
+    @staticmethod
+    def xml_namespaces(xml) -> Dict[str, str]: 
+        events = "start", "start-ns"
+        root = None
+        ns = {}
+        for event, elem in ET.iterparse(xml, events):
+            if event == "start-ns":
+                if elem[0] in ns and ns[elem[0]] != elem[1]:
+                    # NOTE: It is perfectly valid to have the same prefix refer
+                    #     to different URI namespaces in different parts of the
+                    #     document. This exception serves as a reminder that this
+                    #     solution is not robust.    Use at your own peril.
+                    raise KeyError("Duplicate prefix with different URI found.")
+                ns[elem[0]] = "{%s}" % elem[1]
+            elif event == "start":
+                if root is None:
+                    root = elem
+        return ns
+    
     def apply(self, row: pd.Series = None) -> DataFrame:
         if self.id in AbstractMap.get_rml_converter().logical_sources:
             dfs = AbstractMap.get_rml_converter().logical_sources[self.id]
@@ -905,6 +925,12 @@ class LogicalSource(AbstractMap):
                         data = [match.value for match in matches]
                         
                         df = pd.json_normalize(data)
+                        
+                    elif self.__reference_formulation == rml_vocab.XML and self.__iterator:
+                        
+                        _namespaces = LogicalSource.xml_namespaces(source._mapped_entity)
+                        
+                        df = pd.read_xml(source._mapped_entity, namespaces=_namespaces, xpath=self.__iterator, dtype=str)
                         
                     else:
                         df = pd.read_csv(source._mapped_entity, sep=sep, dtype=str)
