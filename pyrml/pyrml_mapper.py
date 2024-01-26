@@ -12,7 +12,7 @@ import time
 from typing import Dict, Generator, Union, List
 
 from jinja2 import Environment, FileSystemLoader
-from pyrml.pyrml_api import MappingsDict, graph_add_all
+from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
@@ -54,9 +54,9 @@ class RMLParser():
                 if l: print(l.decode('ascii'))
         '''
     
-class RMLConverter():
+class RMLConverter(Mapper):
     
-    __instance = None
+    #__instance = None
     
     def __init__(self):
         self.__function_registry = dict()
@@ -65,8 +65,9 @@ class RMLConverter():
         self.__mappings = dict()
         
         self.subject_map_representations = dict()
-        global __instance
-        __instance = self
+        
+#        global __instance
+#        __instance = self
         
     def reset(self):
         del(self.__function_registry)
@@ -94,24 +95,26 @@ class RMLConverter():
     @property
     def function_registry(self):
         return self.__function_registry
-        
+    
+    '''    
     @classmethod
     def get_instance(cls):
         if cls.__instance is None:
             cls.__instance = RMLConverter()
         
         return cls.__instance
-        
+       
     @staticmethod
     def set_instance(instance):
         #if RMLConverter.__instance is None:
         #    RMLConverter.__instance = RMLConverter()
             
         RMLConverter.__instance = instance
-        
+    '''    
     
     def convert(self, rml_mapping, multiprocessed=False, template_vars: Dict[str, str] = None) -> Graph:
     
+        print(f'Mapping file {rml_mapping}')
         plugin.register("sparql", Result, "rdflib.plugins.sparql.processor", "SPARQLResult")
         plugin.register("sparql", Processor, "rdflib.plugins.sparql.processor", "SPARQLProcessor")
         
@@ -287,18 +290,6 @@ class RMLConverter():
     def get_mapping_dict(self):
         return self.__mapping_dict
     
-    def register_function(self, name, fun):
-        self.__function_registry.update({name: fun})
-        
-    def unregister_function(self, name):
-        del self.__function_registry[name]
-        
-    def has_registerd_function(self, name):
-        return name in self.__function_registry
-    
-    def get_registerd_function(self, name):
-        return self.__function_registry.get(name)
-        
     def get_loaded_logical_sources(self):
         return self.__loaded_logical_sources
     

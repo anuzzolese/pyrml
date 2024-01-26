@@ -1,3 +1,4 @@
+
 from abc import abstractmethod
 from io import BytesIO
 import json
@@ -8,7 +9,7 @@ from typing import Dict, Union, Set, List, Type, Generator
 from SPARQLWrapper import SPARQLWrapper, CSV, JSON, XML, TSV
 from jsonpath_ng import parse
 from pandas.core.frame import DataFrame
-from pyrml.pyrml_api import DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException
+from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException
 from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF, Namespace
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -54,20 +55,20 @@ class ConstantObjectMap(ObjectMap):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
             terms = np.array([self.value for x in range(n_rows)], dtype=URIRef)
             
-            AbstractMap.get_rml_converter().mappings[self] = terms
+            Framework.get_mapper().mappings[self] = terms
             
             return terms
     
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
         term_maps = set()
-        mappings_dict = AbstractMap.get_rml_converter().get_mapping_dict()
+        mappings_dict = Framework.get_mapper().get_mapping_dict()
         
         query = prepareQuery(
             """
@@ -184,8 +185,8 @@ class TermObjectMap(ObjectMap):
     
     def apply(self, data_source: DataSource) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             if self.map_type == Literal("reference"):
                 
@@ -249,7 +250,7 @@ class TermObjectMap(ObjectMap):
                 return None
             
             
-            AbstractMap.get_rml_converter().mappings[self] = terms
+            Framework.get_mapper().mappings[self] = terms
             
             return terms
                 
@@ -334,8 +335,8 @@ class ConstantLanguage(Language):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
             terms = np.array([self._constant for x in range(n_rows)])
@@ -387,8 +388,8 @@ class LanguageMap(Language):
         
     def apply(self, data_source: DataSource) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         
         else:
         
@@ -420,7 +421,7 @@ class LanguageMap(Language):
             else:
                 terms = None
                 
-            AbstractMap.get_rml_converter().mappings[self] = terms
+            Framework.get_mapper().mappings[self] = terms
             return terms    
         
     @staticmethod
@@ -488,13 +489,13 @@ class ConstantPredicate(Predicate):
     
     def apply(self, data_source: DataSource) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
             terms = np.array([URIRef(self._constant) if self._constant else None for x in range(n_rows)], dtype=URIRef)
             
-            AbstractMap.get_rml_converter().mappings[self] = terms 
+            Framework.get_mapper().mappings[self] = terms 
             
             return terms
         
@@ -552,8 +553,8 @@ class PredicateMap(Predicate):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             if self._predicate_ref_type == Literal("functionmap") and self.function_map:
                 terms = self.function_map.apply(data_source, rdf_term_type=URIRef)
@@ -579,7 +580,7 @@ class PredicateMap(Predicate):
                     terms = np.array([l(term) for term in data], dtype=URIRef)
                 
         
-            AbstractMap.get_rml_converter().mappings[self] = terms
+            Framework.get_mapper().mappings[self] = terms
         
             return terms
         
@@ -692,8 +693,8 @@ class PredicateObjectMap(AbstractMap):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         
         else:
             preds = [pm.apply(data_source) for pm in self._predicates]
@@ -725,7 +726,7 @@ class PredicateObjectMap(AbstractMap):
             
             #preds_objs.reshape(shp[1], shp[0])
             
-            AbstractMap.get_rml_converter().mappings[self] = preds_objs
+            Framework.get_mapper().mappings[self] = preds_objs
             return preds_objs
     
     
@@ -905,8 +906,8 @@ class LogicalSource(AbstractMap):
         return ns
     
     def apply(self, row: pd.Series = None) -> DataFrame:
-        if self.id in AbstractMap.get_rml_converter().logical_sources:
-            dfs = AbstractMap.get_rml_converter().logical_sources[self.id]
+        if self.id in Framework.get_mapper().logical_sources:
+            dfs = Framework.get_mapper().logical_sources[self.id]
         else: 
             if self.__separator is None:
                 sep = ','
@@ -977,7 +978,7 @@ class LogicalSource(AbstractMap):
                 
                 dfs.append(df)
                 
-                AbstractMap.get_rml_converter().logical_sources[self.id] = dfs
+                Framework.get_mapper().logical_sources[self.id] = dfs
                 
         return dfs
             
@@ -1050,8 +1051,8 @@ class GraphMap(AbstractMap):
         
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             
             if self.term_type == Literal("reference"):
@@ -1079,7 +1080,7 @@ class GraphMap(AbstractMap):
                 terms = None
         
         
-            AbstractMap.get_rml_converter().mappings[self] = terms
+            Framework.get_mapper().mappings[self] = terms
             return terms 
         
 
@@ -1150,8 +1151,8 @@ class SubjectMap(AbstractMap):
                 
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             
             if self.term_type == Literal("functionmap") and self.function_map:
@@ -1176,7 +1177,7 @@ class SubjectMap(AbstractMap):
                     terms = np.array([l(self.value.value) for x in range(n_rows)], dtype=URIRef)
                 
                 
-            AbstractMap.get_rml_converter().mappings[self] = terms
+            Framework.get_mapper().mappings[self] = terms
             return terms
     
     
@@ -1272,8 +1273,8 @@ class FunctionMap(AbstractMap):
                 
             def evaluate(self):
                 if self.__function_ref:
-                    if AbstractMap.get_rml_converter().has_registerd_function(self.__function_ref):
-                        fun = AbstractMap.get_rml_converter().get_registerd_function(self.__function_ref)
+                    if Framework.has_registerd_function(self.__function_ref):
+                        fun = Framework.get_registerd_function(self.__function_ref)
                         
                         if 'rdf_term_type' in kwargs:
                             try:
@@ -1294,8 +1295,8 @@ class FunctionMap(AbstractMap):
             
             
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
         
             function_ref = None
@@ -1670,12 +1671,12 @@ class ReferencingObjectMap(ObjectMap):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in AbstractMap.get_rml_converter().mappings:
-            return AbstractMap.get_rml_converter().mappings[self]
+        if self in Framework.get_mapper().mappings:
+            return Framework.get_mapper().mappings[self]
         else:
             ref = np.array([subject_map.apply(data_source) for tm in self.parent_triples_maps for subject_map in tm.subject_maps], dtype=URIRef)
             ret = np.concatenate(ref, axis=0, dtype=URIRef)
-            AbstractMap.get_rml_converter().mappings[self] = ret
+            Framework.get_mapper().mappings[self] = ret
             return ret
         
     

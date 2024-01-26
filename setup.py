@@ -12,8 +12,9 @@ install_requires=[
    'jsonpath-ng>=1.5.3,<=1.5.3',
    'shortuuid>=1.0.9,<=1.0.9',
    'numpy>=1.23.4,<=1.23.4',
-   'python-slugify[unidecode]>=7.0.0,<=7.0.0'
+   'python-slugify[unidecode]>=7.0.0,<=7.0.0',
+   'lxml>=5.1.0,<=5.1.0'
 ]
 
-setup(name='pyrml', version='0.3.0',
+setup(name='pyrml', version='0.4.0',
     packages=find_packages(), package_data={'pyrml': ['grammar.lark']}, install_requires=install_requires)

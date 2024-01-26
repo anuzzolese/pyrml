@@ -6,7 +6,7 @@ __version__ = "0.2.9"
 __status__ = "Alpha"
 
 #from pyrml.pyrml_mapper import RMLConverter
-from pyrml.pyrml_api import AbstractMap, FunctionAlreadyRegisteredException
+from pyrml.pyrml_api import Framework, FunctionAlreadyRegisteredException
 from pyrml.pyrml_core import RMLFunction
 import datetime, locale, hashlib
 import uuid, shortuuid
@@ -31,14 +31,11 @@ def rml_function(fun_id: str, **params: Dict[str, str]) -> Callable:
 
             return f(*args, **kwargs)
   
-        
-        #rml_converter = RMLConverter.get_instance()
-        rml_converter = AbstractMap.get_rml_converter()
-        if rml_converter.has_registerd_function(fun_id):
+        if Framework.has_registerd_function(fun_id):
             raise FunctionAlreadyRegisteredException(fun_id)
         else:
             rml_f = RMLFunction(fun_id, f, **params)
-            rml_converter.register_function(fun_id, rml_f)
+            Framework.register_function(fun_id, rml_f)
             
         return wrapper
     

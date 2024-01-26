@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 import hashlib
 import os
 import re
-from typing import Set
+from typing import Set, Dict, Type
 
 from lark import Lark, Token
 from lark.visitors import Transformer
@@ -315,12 +315,12 @@ class AbstractMap(TermMap):
     def get_mapped_entity(self) -> Node:
         return self._mapped_entity
     
-    
+    '''
     @staticmethod
     def get_rml_converter():
         from pyrml.pyrml_mapper import RMLConverter
         return RMLConverter.get_instance()
-    
+    '''
     
 class TermUtils():
     
@@ -425,6 +425,7 @@ class TermUtils():
                             value = TermUtils.irify(target_value)
                         else:
                             value = target_value
+                            
                         s = re.sub(text, value, s)
             else:
                 return None
@@ -538,9 +539,9 @@ class EvalTransformer(Transformer):
         #return "%s(%s)"(fun[0],*fun[1])
     
     def f_name(self, name):
-        rml_converter = AbstractMap.get_rml_converter().get_instance()
-        if rml_converter.has_registerd_function(name[0]):
-            fun = rml_converter.get_registerd_function(name[0])
+        #rml_converter = AbstractMap.get_rml_converter().get_instance()
+        if Framework.has_registerd_function(name[0]):
+            fun = Framework.get_registerd_function(name[0])
             name[0] = fun.__qualname__
             
             return fun
@@ -649,3 +650,56 @@ class DataSource():
             return None
         
         
+class Mapper(ABC):
+    
+    @abstractmethod
+    def convert(self, rml_mapping: str, multiprocessed=False, template_vars: Dict[str, str] = None) -> Graph:
+        pass
+    
+    @abstractmethod
+    def reset(self):
+        pass
+    
+class Framework():
+    
+    __mapper = None
+    __function_registry = dict()
+    
+    @classmethod
+    def get_mapper(cls) -> Mapper:
+        if cls.__mapper is None:
+            
+            module = __import__('pyrml.pyrml_mapper')
+            mapper_cls = getattr(module, 'RMLConverter')
+            cls.__mapper = mapper_cls()
+
+        return cls.__mapper
+    
+    @classmethod
+    @property
+    def function_registry(cls):
+        return cls.__function_registry
+    
+    @classmethod
+    def register_function(cls, name, fun):
+        cls.__function_registry.update({name: fun})
+        
+    @classmethod
+    def unregister_function(cls, name):
+        del cls.__function_registry[name]
+        
+    @classmethod
+    def has_registerd_function(cls, name):
+        return name in cls.__function_registry
+    
+    @classmethod
+    def get_registerd_function(cls, name):
+        return cls.__function_registry.get(name)
+    
+    
+    @classmethod
+    def delete_mapper(cls):
+        
+        cls.__mapper.reset()
+        cls.__mapper = None
+    
