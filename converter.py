@@ -24,7 +24,8 @@ class PyrmlCMDTool:
         logging.basicConfig(level=logging.DEBUG)
         
     def do_map(self):
-        rml_converter = RMLConverter.get_instance()
+        rml_converter =Framework.get_mapper()
+
         #Inizio aggiunta per recogito
         #rml_converter.register_function("get_id", get_id)
         #rml_converter.register_function("get_uri", get_uri)
