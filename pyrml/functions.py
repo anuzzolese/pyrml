@@ -1,4 +1,5 @@
 from builtins import isinstance
+from rdflib.term import Node
 __author__ = "Andrea Giovanni Nuzzolese"
 __email__ = "andrea.nuzzolese@cnr.it"
 __license__ = "Apache 2"
@@ -82,6 +83,8 @@ def array_sum(values: List[float]) -> float:
               x='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter',
               y='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter2')
 def equal(x: str, y: str) -> bool:
+    x = str(x) if isinstance(x, Node) else x
+    y = str(y) if isinstance(y, Node) else y
     return x == y
 
 
@@ -89,6 +92,9 @@ def equal(x: str, y: str) -> bool:
               x='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter',
               y='http://users.ugent.be/~bjdmeest/function/grel.ttl#valueParameter2')
 def not_equal(x: str, y: str) -> bool:
+    x = str(x) if isinstance(x, Node) else x
+    y = str(y) if isinstance(y, Node) else y
+    print(f'Not equal: {x} - {y}')
     return x != y
 
 
@@ -202,6 +208,8 @@ def string_length(s: str) -> int:
               e_false='http://users.ugent.be/~bjdmeest/function/grel.ttl#any_false')
 def controls_if(cond: bool, e_true: T, e_false: T = None) -> int:
     
+    
+    print(f'Control if: {cond} - {type(cond)}')
     return e_true if str(cond)=='true' else e_false
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#listContainsElement', 
@@ -301,8 +309,9 @@ def last_index_of(string: str, substring: str) -> int:
               separator='http://users.ugent.be/~bjdmeest/function/grel.ttl#p_string_sep')
 def array_join(arr: List[str], separator: str = '') -> str:
     not_none = lambda x : x and x != Literal('None') and x != Literal('nan')
-    return separator.join(filter(not_none, arr)) if isinstance(arr, list) else separator.join(list(arr.value))
     
+    return separator.join(filter(not_none, arr)) if isinstance(arr, list) else separator.join(list(arr.value))
+     
 
 @rml_function(fun_id='http://example.com/idlab/function/inRange', 
               test='http://example.com/idlab/function/p_test',
@@ -405,3 +414,20 @@ def true_condition(b_expr: bool, string: str) -> str:
 def string_split(value_parameter: str, p_string_sep: str):
     
     return value_parameter.split(p_string_sep)
+
+
+@rml_function(fun_id='https://who.int/WHO-Decision/ontology/function/local_name', 
+              value='https://who.int/WHO-Decision/ontology/function/value')
+def local_name(value: str) -> str:
+
+    if value:
+        value = str(value)
+
+        last_slash = value.rindex('/')
+        last_hash = value.rindex('#')
+
+        index = last_hash if last_hash > last_slash else last_slash
+        
+        return value[index+1:]
+    else:
+        return False

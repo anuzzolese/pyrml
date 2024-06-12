@@ -16,6 +16,7 @@ from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
+from rdflib.term import Node
 from rdflib.parser import StringInputSource
 from rdflib.query import Processor, Result
 
@@ -114,7 +115,6 @@ class RMLConverter(Mapper):
     
     def convert(self, rml_mapping, multiprocessed=False, template_vars: Dict[str, str] = None) -> Graph:
     
-        print(f'Mapping file {rml_mapping}')
         plugin.register("sparql", Result, "rdflib.plugins.sparql.processor", "SPARQLResult")
         plugin.register("sparql", Processor, "rdflib.plugins.sparql.processor", "SPARQLProcessor")
         
@@ -129,6 +129,7 @@ class RMLConverter(Mapper):
             env = Environment(loader=file_loader)
             template = env.get_template(rml_mapping)
             rml_mapping_template = template.render(template_vars)
+            
             rml_mapping = StringInputSource(rml_mapping_template.encode('utf-8'))
         
         triple_mappings = RMLParser.parse(rml_mapping)
@@ -161,18 +162,26 @@ class RMLConverter(Mapper):
                     _pred = self.__generate(_tuple[1])
                     _obj = self.__generate(_tuple[2])
                     
-                    _sub = URIRef(_sub) if isinstance(_sub, str) else _sub
-                    _pred = URIRef(_pred) if isinstance(_pred, str) else _pred
+                    _sub = np.array([_sub], dtype=URIRef) if not isinstance(_sub, np.ndarray) else _sub
+                    _pred = np.array([_pred], dtype=URIRef) if not isinstance(_pred, np.ndarray) else _pred
+                    _obj = np.array([_obj], dtype=Node) if not isinstance(_obj, np.ndarray) else _obj
                     
-                    if _sub and _pred and _obj:
-                        try:
-                            g.add((_sub, _pred, _obj))
-                        except Exception as e:
-                            print(f'{_sub}, {_pred}, {_obj}')
-                            print(f'{_sub} as type {type(_sub)}')
-                            print(type(_obj))
-                            print(_tuple)
-                            raise e
+                    _sub = [URIRef(_s) if isinstance(_s, str) else _s for _s in _sub]
+                    _pred = [URIRef(_p) if isinstance(_p, str) else _p for _p in _pred]
+                    
+                    
+                    try:
+                        for _s in _sub:
+                            for _p in _pred:
+                                for _o in _obj:
+                                    if _s and _p and _o:
+                                        g.add((_s, _p, _o))
+                    except Exception as e:
+                        print(f'{_sub}, {_pred}, {_obj}')
+                        print(f'{_sub} as type {type(_sub)}')
+                        print(type(_obj))
+                        print(_tuple)
+                        raise e
             
         elapsed_time_secs = time.time() - start_time
         print(f'Mapping computed in {elapsed_time_secs} secs producing {len(g)} triples.')
@@ -282,9 +291,10 @@ class RMLConverter(Mapper):
     
     
     def __generate(self, value):
+        '''
         while value and isinstance(value, Generator):
             value = next(value, None)
-            
+        ''' 
         return value
     
     def get_mapping_dict(self):

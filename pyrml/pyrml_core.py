@@ -13,7 +13,7 @@ from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUti
 from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF, Namespace
 from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.term import Node, BNode, Literal, Identifier
+from rdflib.term import Node, BNode, Literal, Identifier, URIRef
 
 import numpy as np
 import pandas as pd
@@ -241,9 +241,14 @@ class TermObjectMap(ObjectMap):
                         terms = np.array([l(term) for term in terms], dtype=BNode)
                         
                     else:
-                        
-                        l = lambda term: URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
+                        def l(term):
+                            if isinstance(term, list):
+                                return np.array([URIRef(TermUtils.irify(t)) if t and not pd.isna(t) else t for t in term], dtype=URIRef)
+                            else:
+                                return URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
+                            
                         terms = np.array([l(term) for term in terms], dtype=URIRef)
+                        
                         
             
             else:
@@ -1156,7 +1161,7 @@ class SubjectMap(AbstractMap):
         else:
             
             if self.term_type == Literal("functionmap") and self.function_map:
-                terms = self.function_map.apply(data_source, rdf_term_type=URIRef)
+                terms = self.function_map.apply(data_source)
             else:
                 if self.term_type == Literal("template"):
                     terms  = Expression.create(self.value).eval_(data_source, True)
@@ -1175,7 +1180,15 @@ class SubjectMap(AbstractMap):
                     n_rows = data_source.data.shape[0]
                     l = lambda val : URIRef(TermUtils.irify(val)) if val else None
                     terms = np.array([l(self.value.value) for x in range(n_rows)], dtype=URIRef)
-                
+            
+            
+            def l(term):
+                if isinstance(term, list):
+                    return np.array([URIRef(TermUtils.irify(t)) if t and not pd.isna(t) and not isinstance(t, URIRef) else t for t in term], dtype=URIRef)
+                else:
+                    return URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
+                        
+            terms = np.array([l(term) for term in terms], dtype=URIRef)
                 
             Framework.get_mapper().mappings[self] = terms
             return terms
@@ -1311,7 +1324,13 @@ class FunctionMap(AbstractMap):
             except Exception as e:
                 pass
             
-            return np.array([Function(row).evaluate() for row in pom_matrix], dtype=Function) 
+            
+            try:
+                return np.array([Function(row).evaluate() for row in pom_matrix], dtype=Function)    
+            except Exception as e:
+                return 
+            
+             
             
             
             
