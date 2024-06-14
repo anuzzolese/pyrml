@@ -94,7 +94,6 @@ def equal(x: str, y: str) -> bool:
 def not_equal(x: str, y: str) -> bool:
     x = str(x) if isinstance(x, Node) else x
     y = str(y) if isinstance(y, Node) else y
-    print(f'Not equal: {x} - {y}')
     return x != y
 
 
@@ -209,7 +208,6 @@ def string_length(s: str) -> int:
 def controls_if(cond: bool, e_true: T, e_false: T = None) -> int:
     
     
-    print(f'Control if: {cond} - {type(cond)}')
     return e_true if str(cond)=='true' else e_false
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#listContainsElement', 

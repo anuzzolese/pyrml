@@ -223,17 +223,36 @@ class TermObjectMap(ObjectMap):
                         #language = TermUtils.eval_template(self._language.value, row, False)
                         #term = Literal(value, lang=self._language.value)
                         
+                        def l(term, lang):
+                            if isinstance(term, list) or isinstance(term, np.ndarray):
+                                return np.array([Literal(lit, lang=lang) if lit and not pd.isna(lit) else lit for lit in term], dtype=Literal)
+                            else:
+                                return Literal(term, lang=lang) if term and not pd.isna(term) else None
+                        
                         languages = self.language.apply(data_source)
                         
-                        terms = np.array([Literal(lit, lang=lang) if lit and not pd.isna(lit) else None for lit, lang in zip(terms, languages)], dtype=Literal)
+                        #terms = np.array([Literal(lit, lang=lang) if lit and not pd.isna(lit) else None for lit, lang in zip(terms, languages)], dtype=Literal)
+                        terms = np.array([l(lit, lang) for lit, lang in zip(terms, languages)], dtype=Literal)
                         
                     elif self.datatype is not None:
                         
-                        l = lambda term: Literal(term, datatype=self.datatype) if term and not pd.isna(term) else None
+                        def l(term):
+                            if isinstance(term, list) or isinstance(term, np.ndarray):
+                                return np.array([Literal(lit, datatype=self.datatype) if lit and not pd.isna(lit) else lit for lit in term], dtype=Literal)
+                            else:
+                                return Literal(term, datatype=self.datatype) if term and not pd.isna(term) else None
                         
                         terms = np.array([l(term) for term in terms], dtype=Literal)
                     else:
-                        terms = np.array([Literal(term) for term in terms], dtype=Literal)
+                        
+                        def l(term):
+                            if isinstance(term, list) or isinstance(term, np.ndarray):
+                                return np.array([Literal(lit) if lit and not pd.isna(lit) else lit for lit in term], dtype=Literal)
+                            else:
+                                return Literal(term) if term and not pd.isna(term) else None
+                        
+                        
+                        terms = np.array([l(term) for term in terms], dtype=Literal)
                 else:
                     if self.term_type == rml_vocab.BLANK_NODE:
                         
@@ -242,7 +261,7 @@ class TermObjectMap(ObjectMap):
                         
                     else:
                         def l(term):
-                            if isinstance(term, list):
+                            if isinstance(term, list) or isinstance(term, np.ndarray):
                                 return np.array([URIRef(TermUtils.irify(t)) if t and not pd.isna(t) else t for t in term], dtype=URIRef)
                             else:
                                 return URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
@@ -1183,7 +1202,7 @@ class SubjectMap(AbstractMap):
             
             
             def l(term):
-                if isinstance(term, list):
+                if isinstance(term, list) or isinstance(term, np.ndarray):
                     return np.array([URIRef(TermUtils.irify(t)) if t and not pd.isna(t) and not isinstance(t, URIRef) else t for t in term], dtype=URIRef)
                 else:
                     return URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
@@ -1326,7 +1345,8 @@ class FunctionMap(AbstractMap):
             
             
             try:
-                return np.array([Function(row).evaluate() for row in pom_matrix], dtype=Function)    
+                out = np.array([Function(row).evaluate() for row in pom_matrix], dtype=Function)
+                return out    
             except Exception as e:
                 return 
             
