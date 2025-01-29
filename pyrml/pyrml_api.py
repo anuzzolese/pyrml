@@ -20,6 +20,7 @@ from rdflib.term import Node
 import unidecode
 import pandas as pd
 import numpy as np
+from urllib.parse import quote
 
 class FunctionNotRegisteredException(Exception):
     def __init__(self, function, message="The function {0} does not exist in the function registry"):
@@ -376,7 +377,7 @@ class TermUtils():
                     '''
                     
                     if is_iri:
-                        value = TermUtils.irify(cell_value)
+                        value = quote(cell_value)
                     else:
                         value = cell_value
                     s = re.sub(text, value, s)
@@ -422,7 +423,7 @@ class TermUtils():
                     else:
                     
                         if is_iri:
-                            value = TermUtils.irify(target_value)
+                            value = quote(target_value)
                         else:
                             value = target_value
                             
