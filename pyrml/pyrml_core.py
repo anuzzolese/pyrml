@@ -730,18 +730,43 @@ class PredicateObjectMap(AbstractMap):
             for predicates in preds:
                 predicates = np.array(predicates).reshape(len(predicates), 1)
                 
-                for objects in objs:
-                    objects = np.array(objects).reshape(len(objects), 1)
-                    
-                    p_o = np.concatenate([predicates, objects], axis=1)
-                    
-                    if init:
-                        preds_objs = p_o
-                        init = False
-                    else:
-                        preds_objs = np.concatenate([preds_objs, p_o], axis=0)
-                
-            
+                for multi_objects in objs:
+                    object_lens = [
+                        len(obj)
+                        if isinstance(obj, list) or isinstance(obj, np.ndarray)
+                        else 1
+                        for obj in multi_objects
+                    ]
+                    for obj_index in range(max(object_lens)):
+                        objects = np.array([
+                            (
+                                (
+                                    obj[obj_index]
+                                    if obj_index < len(obj)
+                                    else None
+                                )
+                                if (
+                                    isinstance(obj, list) or
+                                    isinstance(obj, np.ndarray)
+                                ) else (
+                                    obj
+                                    if obj_index == 0
+                                    else None
+                                ) 
+                            )
+                            for obj in multi_objects
+                        ], dtype=object).reshape(-1, 1)
+                                            
+                        p_o = np.concatenate([
+                            predicates, objects
+                        ], axis=1)
+                        
+                        if init:
+                            preds_objs = p_o
+                            init = False
+                        else:
+                            preds_objs = np.concatenate([preds_objs, p_o], axis=0)
+                            
             #preds_objs = np.array([[pred, obj] for pred in predicates for obj in objects])
             
             
