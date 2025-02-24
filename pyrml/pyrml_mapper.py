@@ -16,7 +16,7 @@ from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
-from rdflib.term import Node
+from rdflib.term import Node, IdentifiedNode
 from rdflib.parser import StringInputSource
 from rdflib.query import Processor, Result
 
@@ -162,12 +162,12 @@ class RMLConverter(Mapper):
                     _pred = self.__generate(_tuple[1])
                     _obj = self.__generate(_tuple[2])
                     
-                    _sub = np.array([_sub], dtype=URIRef) if not isinstance(_sub, np.ndarray) else _sub
+                    _sub = np.array([_sub], dtype=IdentifiedNode) if not isinstance(_sub, np.ndarray) else _sub
                     _pred = np.array([_pred], dtype=URIRef) if not isinstance(_pred, np.ndarray) else _pred
                     _obj = np.array([_obj], dtype=Node) if not isinstance(_obj, np.ndarray) else _obj
                     
-                    _sub = [URIRef(_s) if isinstance(_s, str) else _s for _s in _sub]
-                    _pred = [URIRef(_p) if isinstance(_p, str) else _p for _p in _pred]
+                    _sub = [URIRef(_s) if not isinstance(_s, IdentifiedNode) else _s for _s in _sub]
+                    _pred = [URIRef(_p) if not isinstance(_p, URIRef) else _p for _p in _pred]
                     
                     
                     try:

@@ -482,7 +482,7 @@ class TermUtils():
     @staticmethod
     def irify(string):
         
-        if string and isinstance(string, str):
+        if string and isinstance(string, str) and Framework.IRIFY:
             
             '''
             The followint regex pattern allows to check if the input string is provided as a valid URI. E.g. http://dati.isprambiente.it/rmn/Ancona.jpg
@@ -666,6 +666,8 @@ class Framework():
     
     __mapper = None
     __function_registry = dict()
+    
+    IRIFY = True
     
     @classmethod
     def get_mapper(cls) -> Mapper:

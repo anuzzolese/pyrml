@@ -192,7 +192,7 @@ class TermObjectMap(ObjectMap):
                 
                 data = data_source.dataframe[self.value.value].values
                 
-                l = lambda val : TermUtils.irify(val) if self.term_type and self.term_type != rml_vocab.LITERAL else val
+                l = lambda val : TermUtils.irify(val) if self.term_type and self.term_type == rml_vocab.IRI else BNode(val) if self.term_type and self.term_type == rml_vocab.BLANK_NODE else val
                 
                 terms = [l(term) for term in data]
                 
@@ -1180,6 +1180,7 @@ class SubjectMap(AbstractMap):
         self.__classes: List[URIRef] = kwargs['_classes'] if '_classes' in kwargs else None
         self.__graph_maps: List[GraphMap] = kwargs['graph_maps'] if 'graph_maps' in kwargs else None
         self.__term_type: Literal = kwargs['term_type'] if 'term_type' in kwargs else None
+        self.__tt: IdentifiedNode = kwargs['tt'] if 'tt' in kwargs else rml_vocab.IRI
         self._function_map: FunctionMap = kwargs['function_map'] if 'function_map' in kwargs else None
     
     @property
@@ -1214,23 +1215,29 @@ class SubjectMap(AbstractMap):
                     
                     data = data_source.dataframe[self.value.value]
                 
-                    l = lambda val : URIRef(TermUtils.irify(val)) if val and isinstance(val, str) else None
+                    #l = lambda val : URIRef(TermUtils.irify(val)) if val and isinstance(val, str) else None
                 
-                    terms = np.array([l(term) for term in data], dtype=URIRef)
+                    #terms = np.array([l(term) for term in data], dtype=URIRef)
                      
                     
                 elif self.term_type == Literal("constant"):
                     
                     n_rows = data_source.data.shape[0]
-                    l = lambda val : URIRef(TermUtils.irify(val)) if val else None
-                    terms = np.array([l(self.value.value) for x in range(n_rows)], dtype=URIRef)
+                    #l = lambda val : URIRef(TermUtils.irify(val)) if val else None
+                    #terms = np.array([l(self.value.value) for x in range(n_rows)], dtype=URIRef)
             
             
             def l(term):
-                if isinstance(term, list) or isinstance(term, np.ndarray):
-                    return np.array([URIRef(TermUtils.irify(t)) if t and not pd.isna(t) and not isinstance(t, URIRef) else t for t in term], dtype=URIRef)
+                
+                if self.__tt == rml_vocab.BLANK_NODE:
+                    tt = BNode
                 else:
-                    return URIRef(TermUtils.irify(term)) if term and not pd.isna(term) else term
+                    tt = URIRef
+                
+                if isinstance(term, list) or isinstance(term, np.ndarray):
+                    return np.array([tt(TermUtils.irify(t)) if t and not pd.isna(t) and not isinstance(t, URIRef) else t for t in term], dtype=IdentifiedNode)
+                else:
+                    return tt(TermUtils.irify(term)) if term and not pd.isna(term) else term
                         
             terms = np.array([l(term) for term in terms], dtype=URIRef)
                 
@@ -1242,7 +1249,7 @@ class SubjectMap(AbstractMap):
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
         
         sparql = """
-            SELECT DISTINCT ?map ?sm ?termType
+            SELECT DISTINCT ?map ?sm ?termType ?tt
             WHERE {
                 ?tm rr:subjectMap ?sm
                 { ?sm rr:template ?map
@@ -1261,6 +1268,7 @@ class SubjectMap(AbstractMap):
                  ?sm fnml:functionValue ?map
                  BIND("functionmap" as ?termType)
                 }
+                OPTIONAL{?sm rr:termType ?tt}
             }"""
         
         query = prepareQuery(sparql, 
@@ -1287,7 +1295,7 @@ class SubjectMap(AbstractMap):
         if row.termType == Literal("functionmap"):
             function_map = FunctionMap.from_rdf(graph, row.map)[0]
         
-        return SubjectMap(_id, row.map, _classes=classes, graph_maps=graph_maps, term_type=row.termType, function_map=function_map)
+        return SubjectMap(_id, row.map, _classes=classes, graph_maps=graph_maps, term_type=row.termType, tt=row.tt, function_map=function_map)
         
     
 
