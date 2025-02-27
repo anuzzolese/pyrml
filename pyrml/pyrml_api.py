@@ -344,7 +344,8 @@ class TermUtils():
     @staticmethod
     def replace_place_holders(value, row, is_iri):
         #p = re.compile('\{(.+)\/?\}')
-        p = re.compile('(?<=\{).+?(?=\})')
+        #p = re.compile('(?<=\{).+?(?=\})')
+        p = re.compile('(?<!\\)\{.+?(?<!\\)\}')
         
         row = row._asdict()
         
@@ -354,7 +355,7 @@ class TermUtils():
         s = value
         
         for match in matches:
-            column = match.group(0)
+            column = match.group(0)[1:-2]
             
             column_key = column.strip().replace(r' ', '_')
             if column_key in row:
@@ -391,7 +392,8 @@ class TermUtils():
     
     @staticmethod
     def replace_place_holders_(value, row, columns, is_iri):
-        p = re.compile('(?<=\{).+?(?=\})')
+        #p = re.compile('(?<=\{).+?(?=\})')
+        p = re.compile(r'(?<!\\)\{.+?(?<!\\)\}')
         
         matches = p.finditer(value)
         
@@ -399,7 +401,7 @@ class TermUtils():
         s = value
         
         for match in matches:
-            column = match.group(0)
+            column = match.group(0)[1:-1]
             
             #column_key = column.strip().replace(r' ', '_')
             column_key = column.strip("' ")
@@ -428,6 +430,7 @@ class TermUtils():
                             value = target_value
                             
                         s = re.sub(text, value, s)
+                        s = re.sub('\\\\', '', s)
             else:
                 return None
             #print(str(row[column]))
