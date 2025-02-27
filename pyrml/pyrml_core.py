@@ -580,19 +580,19 @@ class PredicateMap(Predicate):
         if self in Framework.get_mapper().mappings:
             return Framework.get_mapper().mappings[self]
         else:
-            if self._predicate_ref_type == Literal("functionmap") and self.function_map:
+            if self.predicate_expression_type == Literal("functionmap") and self.function_map:
                 terms = self.function_map.apply(data_source, rdf_term_type=URIRef)
                 
             else:
                 if self.predicate_expression_type == Literal("template"):
                     terms = Expression.create(self.predicate_expression).eval_(data_source, True)
-                elif self.predicate_ref_type == Literal("constant"):
+                elif self.predicate_expression_type == Literal("constant"):
                     n_rows = data_source.data.shape[0]
                     
                     terms = np.array([URIRef(self.predicate_expression) if self.predicate_expression else None for x in range(n_rows)], dtype=URIRef)
                     
                     
-                elif self.predicate_ref_type == Literal("reference"):
+                elif self.predicate_expression_type == Literal("reference"):
                     
                     
                     index = data_source.columns[self.value.value]
@@ -615,7 +615,7 @@ class PredicateMap(Predicate):
         term_maps = []
         query = prepareQuery(
             """
-                SELECT DISTINCT ?map ?termType
+                SELECT DISTINCT ?predicateMap ?map ?termType
                 WHERE {
                     {
                         ?predicateMap rml:reference ?map
@@ -652,12 +652,13 @@ class PredicateMap(Predicate):
         
         for row in qres:
             #pm = PredicateMap(row.tripleMap, row.reference, row.template, row.constant, row.predicateMap)
-            pm = PredicateMap(row.tripleMap, row.map, row.termType, row.predicateMap)
+            #pm = PredicateMap(row.tripleMap, row.map, row.termType, row.predicateMap)
+            pm = PredicateMap(row.predicateMap, predicate_expression=row.map, predicate_expression_type=row.termType)
             
             if row.termType == Literal("functionmap"):
-                pm._function_map = FunctionMap.from_rdf(g, row.map).pop()
+                pm.function_map = FunctionMap.from_rdf(g, row.map).pop()
             
-            term_maps.add(pm)
+            term_maps.append(pm)
            
         return term_maps
     
@@ -1213,7 +1214,7 @@ class SubjectMap(AbstractMap):
                    
                 elif self.term_type == Literal("reference"):
                     
-                    data = data_source.dataframe[self.value.value]
+                    terms = data_source.dataframe[self.value.value]
                 
                     #l = lambda val : URIRef(TermUtils.irify(val)) if val and isinstance(val, str) else None
                 
@@ -1223,6 +1224,8 @@ class SubjectMap(AbstractMap):
                 elif self.term_type == Literal("constant"):
                     
                     n_rows = data_source.data.shape[0]
+                    terms = [self.value for x in range(n_rows)]
+                    
                     #l = lambda val : URIRef(TermUtils.irify(val)) if val else None
                     #terms = np.array([l(self.value.value) for x in range(n_rows)], dtype=URIRef)
             
