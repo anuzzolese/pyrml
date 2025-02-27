@@ -161,13 +161,19 @@ class RMLConverter(Mapper):
                     _sub = self.__generate(_tuple[0])
                     _pred = self.__generate(_tuple[1])
                     _obj = self.__generate(_tuple[2])
+                    _graph = self.__generate(_tuple[3]) if len(_tuple) == 4 else None
                     
                     _sub = np.array([_sub], dtype=IdentifiedNode) if not isinstance(_sub, np.ndarray) else _sub
                     _pred = np.array([_pred], dtype=URIRef) if not isinstance(_pred, np.ndarray) else _pred
                     _obj = np.array([_obj], dtype=Node) if not isinstance(_obj, np.ndarray) else _obj
                     
+                    if _graph:
+                        _graph = np.array([_graph], dtype=Node) if not isinstance(_graph, np.ndarray) else _graph
+                        _graph = [URIRef(_g) if not isinstance(_g, URIRef) else _g for _g in _graph]
+                    
                     _sub = [URIRef(_s) if not isinstance(_s, IdentifiedNode) else _s for _s in _sub]
                     _pred = [URIRef(_p) if not isinstance(_p, URIRef) else _p for _p in _pred]
+                    
                     
                     
                     try:
@@ -175,7 +181,11 @@ class RMLConverter(Mapper):
                             for _p in _pred:
                                 for _o in _obj:
                                     if _s and _p and _o:
-                                        g.add((_s, _p, _o))
+                                        if _graph:
+                                            for _g in _graph:
+                                                g.add((_s, _p, _o, _g))
+                                        else:
+                                            g.add((_s, _p, _o))
                     except Exception as e:
                         print(f'{_sub}, {_pred}, {_obj}')
                         print(f'{_sub} as type {type(_sub)}')
