@@ -1749,7 +1749,7 @@ class ReferencingObjectMap(ObjectMap):
         if self in Framework.get_mapper().mappings:
             return Framework.get_mapper().mappings[self]
         else:
-            ref = np.array([subject_map.apply(data_source) for tm in self.parent_triples_maps for subject_map in tm.subject_maps], dtype=URIRef)
+            ref = np.array([subject_map.apply(DataSource(source)) for tm in self.parent_triples_maps for subject_map in tm.subject_maps for logical_source in tm.logical_sources for source in logical_source.apply()], dtype=URIRef)
             ret = np.concatenate(ref, axis=0, dtype=URIRef)
             Framework.get_mapper().mappings[self] = ret
             return ret
