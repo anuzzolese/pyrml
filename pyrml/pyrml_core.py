@@ -13,7 +13,7 @@ from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUti
 from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF, Namespace
 from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.term import Node, BNode, Literal, Identifier, URIRef
+from rdflib.term import Node, BNode, Literal, Identifier, URIRef, _is_valid_langtag
 
 import numpy as np
 import pandas as pd
@@ -224,6 +224,9 @@ class TermObjectMap(ObjectMap):
                         #term = Literal(value, lang=self._language.value)
                         
                         def l(term, lang):
+                            if not TermUtils.is_valid_language_tag(lang):
+                                raise RMLModelException(f'The language tag {lang} is not a valid IETF BCP 47 language tag.')
+                                
                             if isinstance(term, list) or isinstance(term, np.ndarray):
                                 return np.array([Literal(lit, lang=lang) if lit and not pd.isna(lit) else lit for lit in term], dtype=Literal)
                             else:

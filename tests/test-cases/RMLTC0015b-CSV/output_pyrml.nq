@@ -1,0 +1,5 @@
+<http://example.com/BO> <http://www.w3.org/2000/01/rdf-schema#label> "Estado Plurinacional de Bolivia"@spanish _:N3792f39f0bd4478e8d06be8567631d09 .
+<http://example.com/IE> <http://www.w3.org/2000/01/rdf-schema#label> "Ireland"@english _:N3792f39f0bd4478e8d06be8567631d09 .
+<http://example.com/BO> <http://www.w3.org/2000/01/rdf-schema#label> "Bolivia, Plurinational State of"@english _:N3792f39f0bd4478e8d06be8567631d09 .
+<http://example.com/IE> <http://www.w3.org/2000/01/rdf-schema#label> "Irlanda"@spanish _:N3792f39f0bd4478e8d06be8567631d09 .
+
