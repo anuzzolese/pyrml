@@ -9,7 +9,7 @@ from typing import Dict, Union, Set, List, Type, Generator
 from SPARQLWrapper import SPARQLWrapper, CSV, JSON, XML, TSV
 from jsonpath_ng import parse
 from pandas.core.frame import DataFrame
-from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException
+from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException, RMLModelException
 from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF, Namespace
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -1526,6 +1526,9 @@ class TripleMappings(AbstractMap):
         start_time = time.time()
         msg = "\t TripleMapping %s" % self._id
         #print(msg)
+        
+        if Framework.RML_STRICT and (len(self.subject_maps) > 1 or len(self.logical_sources) > 1):
+            raise RMLModelException(f'The RML descriptor declares a TripleMapping with {len(self.subject_maps)} subject maps. Exactly 1 subject map must be declared.')
         
         triples : DataFrame = pd.DataFrame(columns=['s', 'p', 'o'], dtype=object)
         for logical_source in self.logical_sources:

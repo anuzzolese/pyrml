@@ -665,12 +665,18 @@ class Mapper(ABC):
     def reset(self):
         pass
     
+class RMLModelException(Exception):
+    
+    def __init__(self, message):            
+        super().__init__(message)
+    
 class Framework():
     
     __mapper = None
     __function_registry = dict()
     
     IRIFY = True
+    RML_STRICT = False
     
     @classmethod
     def get_mapper(cls) -> Mapper:
