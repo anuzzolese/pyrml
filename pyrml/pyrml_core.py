@@ -1506,7 +1506,7 @@ class TripleMappings(AbstractMap):
         self.__subject_maps : List[SubjectMap] = kwargs['subject_maps'] if 'subject_maps' in kwargs else None
         self.__predicate_object_maps : List[PredicateObjectMap] = kwargs['predicate_object_maps'] if 'predicate_object_maps' in kwargs else None
         self.__condition : str = kwargs['condition'] if 'condition' in kwargs else None
-        self.__base : str = kwargs['base'] if 'base' and kwargs['base'] in kwargs else ''
+        self.__base : str = kwargs['base'] if 'base' in kwargs and kwargs['base'] else ''
         
     @property
     def logical_sources(self) -> LogicalSource:
