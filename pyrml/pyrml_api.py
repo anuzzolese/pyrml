@@ -430,7 +430,8 @@ class TermUtils():
                     if target_value is None or (isinstance(target_value, float) and np.isnan(target_value)):
                         s = None
                     else:
-                    
+                        
+                        target_value = str(target_value)
                         if is_iri:
                             value = quote(target_value, safe='')
                         else:
