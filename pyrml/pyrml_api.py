@@ -385,7 +385,7 @@ class TermUtils():
                     '''
                     
                     if is_iri:
-                        value = quote(cell_value)
+                        value = quote(cell_value, safe='')
                     else:
                         value = cell_value
                     s = re.sub(text, value, s)
@@ -432,7 +432,7 @@ class TermUtils():
                     else:
                     
                         if is_iri:
-                            value = quote(target_value)
+                            value = quote(target_value, safe='')
                         else:
                             value = target_value
                             

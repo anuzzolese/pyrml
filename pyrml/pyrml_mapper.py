@@ -16,7 +16,7 @@ from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
-from rdflib.term import Node, IdentifiedNode, BNode
+from rdflib.term import Node, IdentifiedNode, BNode, _is_valid_uri
 from rdflib.parser import StringInputSource
 from rdflib.query import Processor, Result
 
@@ -196,14 +196,17 @@ class RMLConverter(Mapper):
                     
                     try:
                         for _s in _sub:
-                            for _p in _pred:
-                                for _o in _obj:
-                                    if _s and _p and _o:
-                                        if _graph:
-                                            for _g in _graph:
-                                                g.add((_s, _p, _o, _g))
-                                        else:
-                                            g.add((_s, _p, _o))
+                            if _is_valid_uri(_s):
+                                for _p in _pred:
+                                    if _is_valid_uri(_p):
+                                        for _o in _obj:
+                                            if _s and _p and _o:
+                                                if _graph:
+                                                    for _g in _graph:
+                                                        if _is_valid_uri(_g):
+                                                            g.add((_s, _p, _o, _g))
+                                                else:
+                                                    g.add((_s, _p, _o))
                     except Exception as e:
                         print(f'{_sub}, {_pred}, {_obj}')
                         print(f'{_sub} as type {type(_sub)}')
