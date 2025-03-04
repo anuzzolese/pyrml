@@ -16,7 +16,7 @@ from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
-from rdflib.term import Node, IdentifiedNode
+from rdflib.term import Node, IdentifiedNode, BNode
 from rdflib.parser import StringInputSource
 from rdflib.query import Processor, Result
 
@@ -113,7 +113,7 @@ class RMLConverter(Mapper):
         RMLConverter.__instance = instance
     '''    
     
-    def convert(self, rml_mapping, multiprocessed=False, template_vars: Dict[str, str] = None) -> Graph:
+    def convert(self, rml_mapping, multiprocessed=False, base=None, template_vars: Dict[str, str] = None) -> Graph:
     
         plugin.register("sparql", Result, "rdflib.plugins.sparql.processor", "SPARQLResult")
         plugin.register("sparql", Processor, "rdflib.plugins.sparql.processor", "SPARQLProcessor")
@@ -134,7 +134,10 @@ class RMLConverter(Mapper):
         
         triple_mappings = RMLParser.parse(rml_mapping)
         
-        g = ConjunctiveGraph()
+        if base:
+            g = ConjunctiveGraph(default_graph_base=base)
+        else:
+            g = ConjunctiveGraph()
         
         
         print(f'The RML mapping contains {len(triple_mappings)} triple mappings.')
@@ -157,6 +160,18 @@ class RMLConverter(Mapper):
         else:
             for tm in triple_mappings:
                 for _tuple in tm.apply():
+                    
+                    def normalize_iri(iri):
+                        if isinstance(iri, BNode):
+                            return iri
+                        elif isinstance(iri, URIRef):
+                            if str(iri).find(':') > 0:
+                                return iri
+                        
+                        return URIRef(tm.base + str(iri))
+
+                        
+                    
                     #print(f'TUPLE {_tuple}')
                     _sub = self.__generate(_tuple[0])
                     _pred = self.__generate(_tuple[1])
@@ -171,8 +186,11 @@ class RMLConverter(Mapper):
                         _graph = np.array([_graph], dtype=Node) if not isinstance(_graph, np.ndarray) else _graph
                         _graph = [URIRef(_g) if not isinstance(_g, URIRef) else _g for _g in _graph]
                     
-                    _sub = [URIRef(_s) if not isinstance(_s, IdentifiedNode) else _s for _s in _sub]
-                    _pred = [URIRef(_p) if not isinstance(_p, URIRef) else _p for _p in _pred]
+                    #_sub = [URIRef(_s) if not isinstance(_s, IdentifiedNode) else _s for _s in _sub]
+                    #_pred = [URIRef(_p) if not isinstance(_p, URIRef) else _p for _p in _pred]
+                    _sub = [normalize_iri(_s) for _s in _sub]
+                    _pred = [normalize_iri(_p) for _p in _pred]
+                    
                     
                     
                     
