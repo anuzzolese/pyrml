@@ -21,6 +21,7 @@ import unidecode
 import pandas as pd
 import numpy as np
 from urllib.parse import quote
+from rdflib.plugin import register, Parser
 
 class FunctionNotRegisteredException(Exception):
     def __init__(self, function, message="The function {0} does not exist in the function registry"):
@@ -680,6 +681,10 @@ class Framework():
     
     __mapper = None
     __function_registry = dict()
+    
+    register('text/turtle', Parser, 'pyrml.pyrml_rdflib', 'MyTurtleParser')
+    register('turtle', Parser, 'pyrml.pyrml_rdflib', 'MyTurtleParser')
+    register('ttl', Parser, 'pyrml.pyrml_rdflib', 'MyTurtleParser')
     
     IRIFY = True
     RML_STRICT = False
