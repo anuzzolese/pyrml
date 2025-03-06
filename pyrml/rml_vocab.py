@@ -62,6 +62,8 @@ JSON_PATH = URIRef(QL + "JSONPath")
 
 XML = URIRef(QL + "XML")
 
+XPAPTH = URIRef(QL + "XPath")
+
 REFERENCE_FORMULATION = URIRef(RML + "referenceFormulation")
 
 ITERATOR = URIRef(RML + "iterator")

@@ -980,7 +980,7 @@ class LogicalSource(AbstractMap):
                         
                         df = pd.json_normalize(data)
                         
-                    elif self.__reference_formulation == rml_vocab.XML and self.__iterator:
+                    elif (self.__reference_formulation == rml_vocab.XML or self.__reference_formulation == rml_vocab.XPAPTH) and self.__iterator:
                         
                         _namespaces = LogicalSource.xml_namespaces(source._mapped_entity)
                         
