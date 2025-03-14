@@ -236,10 +236,6 @@ class Expression():
             
             cursor = 0
 
-            #test = "Ciccio b'ello"
-            #test = "\"{t}\"".format(t=test)
-            out = ''
-            #print(eval(repr(test)))
             for match in matches:
                 
                 start = match.span()[0]-6
@@ -412,10 +408,15 @@ class TermUtils():
             
             #column_key = column.strip().replace(r' ', '_')
             column_key = column.strip("' ")
+            
+            if column_key not in columns:
+                column_key = column_key.lower()
+                if column_key not in columns:
+                    column_key = column_key.upper() 
+            
             if column_key in columns:
                 
                 text = "{( )*" + re.escape(column) + "( )*}"
-                
                 target_value = DataSource.get_from_row(row, columns, column_key)
                 
                 if target_value != target_value:
@@ -430,7 +431,6 @@ class TermUtils():
                     if target_value is None or (isinstance(target_value, float) and np.isnan(target_value)):
                         s = None
                     else:
-                        
                         target_value = str(target_value)
                         if is_iri:
                             value = quote(target_value, safe='')
@@ -656,11 +656,15 @@ class DataSource():
         
     @staticmethod
     def get_from_row(row: np.ndarray, columns: dict, column_reference: str) -> object:
-        if column_reference in columns:
-            index = columns[column_reference]
-            return row[index]
-        else:
-            return None
+        if column_reference not in columns:
+            column_reference = column_reference.lower()
+            if column_reference not in columns:
+                column_reference = column_reference.upper()
+                if column_reference not in columns:
+                    return None
+            
+        index = columns[column_reference]
+        return row[index]
         
         
 class Mapper(ABC):
@@ -689,6 +693,7 @@ class Framework():
     
     IRIFY = True
     RML_STRICT = False
+    INFER_LITERAL_DATATYPES = False
     
     @classmethod
     def get_mapper(cls) -> Mapper:

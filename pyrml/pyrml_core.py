@@ -11,14 +11,15 @@ from jsonpath_ng import parse
 from pandas.core.frame import DataFrame
 from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException, RMLModelException
 from rdflib import URIRef, Graph, IdentifiedNode
-from rdflib.namespace import RDF, Namespace
+from rdflib.namespace import RDF, Namespace, XSD
 from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.term import Node, BNode, Literal, Identifier, URIRef, _is_valid_langtag
+from rdflib.term import Node, BNode, Literal, Identifier, URIRef, _is_valid_langtag, _castPythonToLiteral, _castLexicalToPython
 
 import numpy as np
 import pandas as pd
 import pyrml.rml_vocab as rml_vocab
 import xml.etree.ElementTree as ET
+import sqlalchemy as sa
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
@@ -190,19 +191,38 @@ class TermObjectMap(ObjectMap):
         else:
             if self.map_type == Literal("reference"):
                 
-                data = data_source.dataframe[self.value.value].values
+                try:
+                    column_name = self.value.value
+                    if column_name not in data_source.dataframe.columns:
+                        column_name = column_name.lower()
+                        if column_name not in data_source.dataframe.columns:
+                            column_name = column_name.upper()
+                            
+                    data = data_source.dataframe[column_name].values                    
+                except KeyError as e:
+                    print(e)
+                    data = []
                 
-                l = lambda val : TermUtils.irify(val) if self.term_type and self.term_type == rml_vocab.IRI else BNode(val) if self.term_type and self.term_type == rml_vocab.BLANK_NODE else val
+                def l(val):
+                    if self.term_type and self.term_type == rml_vocab.IRI:
+                        val = TermUtils.irify(val)  
+                    elif self.term_type and self.term_type == rml_vocab.BLANK_NODE:
+                        val = BNode(val) 
+                    return val
+                        
+                
+                #l = lambda val : TermUtils.irify(val) if self.term_type and self.term_type == rml_vocab.IRI else BNode(val) if self.term_type and self.term_type == rml_vocab.BLANK_NODE else val
                 
                 terms = [l(term) for term in data]
                 
                 
             elif self.map_type == Literal("template"):
                 
-                if self.term_type is None or self.term_type == rml_vocab.LITERAL:
+                if self.term_type and (self.term_type == rml_vocab.LITERAL or self.language or self.datatype):
                     terms = self._expression.eval_(data_source, False)
                 else:
                     terms = self._expression.eval_(data_source, True)
+                    self.__term_type = URIRef(rml_vocab.RR + 'IRI')
             elif self.map_type == Literal("constant"):
                 n_rows = data_source.data.shape[0]
                 
@@ -241,18 +261,33 @@ class TermObjectMap(ObjectMap):
                         
                         def l(term):
                             if isinstance(term, list) or isinstance(term, np.ndarray):
-                                return np.array([Literal(lit, datatype=self.datatype) if lit and not pd.isna(lit) else lit for lit in term], dtype=Literal)
+                                return np.array([Literal(_castPythonToLiteral(_castLexicalToPython(str(lit), self.datatype), self.datatype)[0], datatype=self.datatype) if lit is not None and not pd.isna(lit) else lit for lit in term], dtype=Literal)
                             else:
-                                return Literal(term, datatype=self.datatype) if term and not pd.isna(term) else None
+                                _term = Literal(_castPythonToLiteral(_castLexicalToPython(str(term), self.datatype), self.datatype)[0], datatype=self.datatype) if term is not None and not pd.isna(term) else None
+                                return _term
                         
                         terms = np.array([l(term) for term in terms], dtype=Literal)
                     else:
                         
                         def l(term):
+                            
+                            
+                            def get_item(_item):
+                                if not Framework.INFER_LITERAL_DATATYPES:
+                                    return Literal(str(_item))
+                                
+                                if isinstance(_item, np.datetime64):
+                                    return Literal(_item, datatype=XSD.dateTime)
+                                else:
+                                    try:
+                                        return Literal(_item.item())
+                                    except Exception:
+                                        return Literal(_item)
+                            
                             if isinstance(term, list) or isinstance(term, np.ndarray):
-                                return np.array([Literal(lit) if lit and not pd.isna(lit) else lit for lit in term], dtype=Literal)
+                                return np.array([get_item(lit) if lit or not pd.isna(lit) else lit for lit in term], dtype=Literal)
                             else:
-                                return Literal(term) if term and not pd.isna(term) else None
+                                return get_item(term) if term or not pd.isna(term) else None
                         
                         
                         terms = np.array([l(term) for term in terms], dtype=Literal)
@@ -741,35 +776,38 @@ class PredicateObjectMap(AbstractMap):
                         else 1
                         for obj in multi_objects
                     ]
-                    for obj_index in range(max(object_lens)):
-                        objects = np.array([
-                            (
+                    
+                    if object_lens:
+                        for obj_index in range(max(object_lens)):
+                            objects = np.array([
                                 (
-                                    obj[obj_index]
-                                    if obj_index < len(obj)
-                                    else None
+                                    (
+                                        obj[obj_index]
+                                        if obj_index < len(obj)
+                                        else None
+                                    )
+                                    if (
+                                        isinstance(obj, list) or
+                                        isinstance(obj, np.ndarray)
+                                    ) else (
+                                        obj
+                                        if obj_index == 0
+                                        else None
+                                    ) 
                                 )
-                                if (
-                                    isinstance(obj, list) or
-                                    isinstance(obj, np.ndarray)
-                                ) else (
-                                    obj
-                                    if obj_index == 0
-                                    else None
-                                ) 
-                            )
-                            for obj in multi_objects
-                        ], dtype=object).reshape(-1, 1)
-                                            
-                        p_o = np.concatenate([
-                            predicates, objects
-                        ], axis=1)
-                        
-                        if init:
-                            preds_objs = p_o
-                            init = False
-                        else:
-                            preds_objs = np.concatenate([preds_objs, p_o], axis=0)
+                                for obj in multi_objects
+                            ], dtype=object).reshape(-1, 1)
+                                                
+                            p_o = np.concatenate([
+                                predicates, objects
+                            ], axis=1)
+                            
+                            if init:
+                                preds_objs = p_o
+                                init = False
+                            else:
+                                preds_objs = np.concatenate([preds_objs, p_o], axis=0)
+                                
                             
             #preds_objs = np.array([[pred, obj] for pred in predicates for obj in objects])
             
@@ -915,6 +953,7 @@ class LogicalSource(AbstractMap):
         super().__init__(map_id, value)
         self.__separator : str = kwargs['separator'] if 'separator' in kwargs else ',' 
         self.__query : str = kwargs['query'] if 'query' in kwargs else None
+        self.__table_name : str = kwargs['table_name'] if 'table_name' in kwargs else None
         self.__reference_formulation : URIRef = kwargs['reference_formulation'] if 'reference_formulation' in kwargs else rml_vocab.CSV
         self.__iterator: URIRef = kwargs['iterator'] if 'iterator' in kwargs else None
         self.__sources : List[Source] = kwargs['sources'] if 'sources' in kwargs else None
@@ -934,6 +973,10 @@ class LogicalSource(AbstractMap):
     @property
     def query(self) -> str:
         return self.__query
+    
+    @property
+    def table_name(self) -> str:
+        return self.__table_name
     
     @property
     def iterator(self) -> URIRef:
@@ -1023,6 +1066,31 @@ class LogicalSource(AbstractMap):
                         
                     else:
                         df = None
+                elif isinstance(source, SQLSource) and source.valid() and (self.__query or self.__table_name):
+                    
+                    db_protocol = None
+                    if source.driver == Literal('com.mysql.cj.jdbc.Driver'):
+                        db_protocol = 'mysql+mysqlconnector'
+                    elif source.driver == Literal('org.postgresql.Driver'):
+                        db_protocol = 'postgresql+psycopg2'
+                    
+                    if db_protocol:
+                    
+                        #engine = sa.create_engine(f'{db_protocol}://{source.username}:{source.password}@?dsn={source.dns}')
+                        engine = sa.create_engine(f'{db_protocol}://{source.username}:{source.password}@{source.dns}')
+
+                        
+                        query = self.__query if self.__query else f'SELECT * FROM {self.__table_name}'
+                        try:
+                            df = pd.read_sql(query, engine, parse_dates=['EntranceDate'])
+                        except Exception as e:
+                            print(e)
+                            df = pd.DataFrame()
+                        engine.dispose()
+                        
+                    else:
+                        raise Exception(f'Database {source.driver} not supported.')
+                    
                 else:
                     df = None
                 
@@ -1043,13 +1111,14 @@ class LogicalSource(AbstractMap):
         term_maps = []
             
         sparql = """
-            SELECT DISTINCT ?ls ?rf ?sep ?ite ?query
+            SELECT DISTINCT ?ls ?rf ?sep ?ite ?query ?tableName
             WHERE {
-                ?tm rml:logicalSource ?ls
+                ?tm rml:logicalSource|rr:logicalTable ?ls
                 OPTIONAL {?ls rml:referenceFormulation ?rf}
                 OPTIONAL {?ls crml:separator ?sep}
                 OPTIONAL {?ls rml:iterator ?ite}
-                OPTIONAL {?ls rml:query ?query}
+                OPTIONAL {?ls rml:query|rr:sqlQuery ?query}
+                OPTIONAL {?ls rr:tableName ?tableName}
             }"""
             #OPTIONAL {?ls crml:separator ?sep}
         
@@ -1059,8 +1128,8 @@ class LogicalSource(AbstractMap):
                     "crml": rml_vocab.CRML,
                     "csvw": rml_vocab.CSVW,
                     "sd": rml_vocab.SD,
-                    "ql": rml_vocab.QL
-
+                    "ql": rml_vocab.QL,
+                    "rr": rml_vocab.RR
                 })
         
         if parent is not None:
@@ -1083,10 +1152,11 @@ class LogicalSource(AbstractMap):
             
             separator = row.sep.value if row.sep else ','
             query = row.query.value if row.query else None
+            table_name = row.tableName.value if row.tableName else None
             iterator = row.ite if row.ite else None
             rf = row.rf if row.rf else rml_vocab.CSV
             
-            ls = LogicalSource(row.ls, None, sources=sources, separator=separator, query=query, iterator=iterator, reference_formulation=rf)
+            ls = LogicalSource(row.ls, None, sources=sources, separator=separator, query=query,table_name= table_name, iterator=iterator, reference_formulation=rf)
             term_maps.append(ls)
             
         return term_maps
@@ -1595,7 +1665,10 @@ class TripleMappings(AbstractMap):
                                                     
                                                     if not df_left.empty and not df.empty:
                                                         
-                                                        df_join = df_left.merge(df, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
+                                                        try: 
+                                                            df_join = df_left.merge(df, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
+                                                        except ValueError:
+                                                            df_join = pd.concat([df_left, df], axis=1, join='inner', sort=False)
                                                     
                                                         pom_representation = pom.apply(DataSource(df_join))
                                                         
@@ -1683,7 +1756,7 @@ class TripleMappings(AbstractMap):
             SELECT DISTINCT ?tm
             WHERE {
                 %PLACE_HOLDER%
-                ?tm rml:logicalSource ?source ;
+                ?tm rml:logicalSource|rr:logicalTable ?source ;
                     rr:subjectMap ?sm
             }"""
         
@@ -1821,6 +1894,12 @@ class Source(AbstractMap):
                     ?source sd:endpoint ?s
                     BIND('sparql' AS ?sourcetype)  
                 }
+                UNION
+                {
+                    ?ls rml:source ?source .
+                    ?source d2rq:jdbcDSN ?dsn
+                    BIND('sql' AS ?sourcetype)
+                }
             }'''
             
         query = prepareQuery(sparql, 
@@ -1829,14 +1908,21 @@ class Source(AbstractMap):
                 "crml": rml_vocab.CRML,
                 "csvw": rml_vocab.CSVW,
                 "sd": rml_vocab.SD,
-                "ql": rml_vocab.QL
-
+                "ql": rml_vocab.QL,
+                "rr": rml_vocab.RR,
+                "d2rq": 'http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#'
             })
     
         if parent is not None:
             qres = g.query(query, initBindings = { "ls": parent})
         else:
             qres = g.query(query)
+            
+        # If the length of the result set is 0 we check that a connection to a relational database exists.        
+        if len(qres) == 0:
+            db = g.value(None, RDF.type, URIRef('http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#Database'), True)
+            if db:
+                return [SQLSource.from_rdf(g, db)]
               
         return [Source.__build(g, row) for row in qres]
     
@@ -1850,6 +1936,8 @@ class Source(AbstractMap):
             return CSVSource.from_rdf(g, row.source)
         elif sourcetype == 'sparql':
             return SPARQLSource.from_rdf(g, row.source)
+        elif sourcetype == 'sql':
+            return SQLSource.from_rdf(g, row.source)
         else:
             return None
             
@@ -1891,7 +1979,7 @@ class CSVSource(Source):
         return self.__url
     
     @staticmethod
-    def from_rdf(g: Graph, parent: IdentifiedNode) -> 'TableSource':
+    def from_rdf(g: Graph, parent: IdentifiedNode) -> Source:
         
         csvw = 'http://www.w3.org/ns/csvw#'
         
@@ -1944,7 +2032,7 @@ class SPARQLSource(Source):
         return self.__result_format
         
     @staticmethod
-    def from_rdf(g: Graph, parent: IdentifiedNode) -> 'TableSource':
+    def from_rdf(g: Graph, parent: IdentifiedNode) -> Source:
         
         sd = Namespace('http://www.w3.org/ns/sparql-service-description#')
         w3_formats = Namespace('http://www.w3.org/ns/formats/')
@@ -1959,6 +2047,65 @@ class SPARQLSource(Source):
             result_format = result_format if result_format else w3_formats.SPARQL_Results_JSON
                 
             return SPARQLSource(parent, endpoint, endpoint=endpoint, supported_language=supported_language, result_format=result_format)
+                
+        else:
+            return None
+        
+class SQLSource(Source):
+    
+    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
+        super().__init__(map_id, value)
+        
+        self.__dns : Literal = kwargs['dns'] if 'dns' in kwargs else None
+        self.__driver : Literal = kwargs['driver'] if 'driver' in kwargs else None
+        self.__usermane: Literal = kwargs['username'] if 'username' in kwargs else None
+        self.__password: Literal = kwargs['password'] if 'password' in kwargs else None
+        self.__result_size_limit = kwargs['result_size_limit'] if 'result_size_limit' in kwargs else None
+        self.__fetch_size = kwargs['fetch_size'] if 'fetch_size' in kwargs else None
+        
+    @property
+    def dns(self):
+        return self.__dns
+    
+    @property
+    def driver(self):
+        return self.__driver
+    
+    @property
+    def username(self):
+        return self.__usermane
+    
+    @property
+    def password(self):
+        return self.__password
+    
+    @property
+    def result_size_limit(self):
+        return self.__result_size_limit
+    
+    @property
+    def fetch_size(self):
+        return self.__fetch_size
+    
+    def valid(self):
+        
+        return True if self.__dns and self.__usermane and self.__password else False
+        
+    @staticmethod
+    def from_rdf(g: Graph, parent: IdentifiedNode) -> Source:
+        
+        d2rq = Namespace('http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#')
+        
+        dns = g.value(parent, d2rq.jdbcDSN, None, True)
+        username = g.value(parent, d2rq.username, None, True)
+        password = g.value(parent, d2rq.password, None, True)
+        if dns and username and password:
+            
+            driver = g.value(parent, d2rq.jdbcDriver, None, True)
+            result_size_limit = g.value(parent, d2rq.resultSizeLimit, None, True)
+            fetch_size = g.value(parent, d2rq.fetchSize, None, True)
+                
+            return SQLSource(parent, dns, dns=dns, driver=driver, username=username, password=password, result_size_limit=result_size_limit, fetch_size=fetch_size)
                 
         else:
             return None
