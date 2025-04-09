@@ -1,4 +1,4 @@
-from rdflib import URIRef
+from rdflib import URIRef, Namespace
 
 RR = "http://www.w3.org/ns/r2rml#"
 
@@ -15,6 +15,15 @@ FNO = "https://w3id.org/function/ontology#"
 CSVW= "http://www.w3.org/ns/csvw#"
 
 SD = "http://www.w3.org/ns/sparql-service-description#"
+
+D2RQ = "http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#"
+
+RR_NS = Namespace(RR)
+RML_NS = Namespace(RML)
+FNML_NS = Namespace(FNML)
+CSVW_NS = Namespace(CSVW)
+SD_NS = Namespace(SD)
+D2RQ_NS = Namespace(D2RQ)
 
 CONDITION = URIRef(CRML + "condition")
 

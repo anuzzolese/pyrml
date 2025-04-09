@@ -20,6 +20,8 @@ import pandas as pd
 import pyrml.rml_vocab as rml_vocab
 import xml.etree.ElementTree as ET
 import sqlalchemy as sa
+from biorun.libs.placlib import NONE
+from openpyxl.chart import data_source
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
@@ -70,6 +72,8 @@ class ConstantObjectMap(ObjectMap):
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
         term_maps = set()
         mappings_dict = Framework.get_mapper().get_mapping_dict()
+        
+        g.tr
         
         query = prepareQuery(
             """
@@ -184,7 +188,7 @@ class TermObjectMap(ObjectMap):
         return g
     
     
-    def apply(self, data_source: DataSource) -> np.array:
+    def apply(self, data_source: DataSource, **kwargs) -> np.array:
         
         if self in Framework.get_mapper().mappings:
             return Framework.get_mapper().mappings[self]
@@ -218,7 +222,7 @@ class TermObjectMap(ObjectMap):
                 
             elif self.map_type == Literal("template"):
                 
-                if self.term_type and (self.term_type == rml_vocab.LITERAL or self.language or self.datatype):
+                if self.term_type == rml_vocab.LITERAL or self.language or self.datatype:
                     terms = self._expression.eval_(data_source, False)
                 else:
                     terms = self._expression.eval_(data_source, True)
@@ -321,40 +325,25 @@ class TermObjectMap(ObjectMap):
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List['TermObjectMap']:
         term_maps = []
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?p ?map ?mapType ?tt ?datatype
-                WHERE {
-                    {?p rml:reference ?map . BIND("reference" AS ?mapType)}
-                    UNION
-                    {?p rr:template ?map. BIND("template" AS ?mapType)}
-                    UNION
-                    {?p rr:constant ?map . BIND("constant" AS ?mapType)}
-                    UNION
-                    {?p fnml:functionValue ?map . BIND("functionmap" AS ?mapType)}
-                    OPTIONAL{?p rr:termType ?tt}
-                    OPTIONAL {?p rr:datatype ?datatype}
-            }""",
-            initNs = {
-                "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML,
-                "fnml": rml_vocab.FNML
-                })
-
-        if parent is not None:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
-            
-        for row in qres:
-            
-            term_object_map = row.p
+        
+        tt = g.value(parent, rml_vocab.RR_NS.termType)
+        datatype = g.value(parent, rml_vocab.RR_NS.datatype)
+        
+        maps = [(m, Literal('reference')) for m in g.objects(parent, rml_vocab.RML_NS.reference, True)]
+        maps += [(m, Literal('template')) for m in g.objects(parent, rml_vocab.RR_NS.template, True)]
+        maps += [(m, Literal('constant')) for m in g.objects(parent, rml_vocab.RR_NS.constant, True)]
+        maps += [(m, Literal('functionmap')) for m in g.objects(parent, rml_vocab.FNML_NS.functionValue, True)]
+        
+        for map in maps:
+            term_object_map = parent
             
             language = LanguageBuilder.build(g, term_object_map)
             
-            tom = TermObjectMap(term_object_map, row.map, map_type=row.mapType, term_type=row.tt, language=language, datatype=row.datatype)
-            if row.mapType == Literal("functionmap"):
-                tom._function_map = FunctionMap.from_rdf(g, row.map).pop()
+            object_map = map[0]
+            map_type=map[1]
+            tom = TermObjectMap(term_object_map, object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
+            if map_type == Literal("functionmap"):
+                tom._function_map = FunctionMap.from_rdf(g, object_map).pop()
             
             term_maps.append(tom)
            
@@ -408,28 +397,10 @@ class ConstantLanguage(Language):
         
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
-        term_maps = set()
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?p ?language
-                WHERE {
-                    ?p rr:language ?language
-                }
-            """,
-            initNs = {
-                "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML
-                })
-
-        if parent is not None:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
+        langs = g.objects(parent, rml_vocab.RR_NS.language, True)
         
-        for row in qres:
-            term_maps.add(ConstantLanguage(row.language, row.p))
-           
-        return term_maps
+        return [ConstantLanguage(language, parent) for language in langs]
+        
     
 
 class LanguageMap(Language):
@@ -488,29 +459,18 @@ class LanguageMap(Language):
         
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
-        term_maps = set()
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?objectMap ?languageMap ?value ?map_type
-                WHERE {
-                    ?objectMap rml:languageMap ?languageMap
-                    OPTIONAL{?languageMap rml:reference ?value BIND('reference' as ?map_type)}
-                    OPTIONAL{?languageMap rr:template ?value BIND('template' as ?map_type)}
-                    OPTIONAL{?languageMap rr:constant ?value BIND('constant' as ?map_type)}
-            }""",
-            initNs = {
-                "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML
-                })
-
-        if parent is not None:
-            qres = g.query(query, initBindings = { "objectMap": parent})
-        else:
-            qres = g.query(query)
         
-        for row in qres:
-            term_maps.add(LanguageMap(row.languageMap, value=row.value, map_type=row.map_type))
-           
+        term_maps = []
+        
+        language_maps = g.objects(parent, rml_vocab.RML_NS.languageMap, True)
+        for language_map in language_maps:
+            preds = [(rml_vocab.RML_NS.reference, Literal('reference')), (rml_vocab.RR_NS.template, Literal('template')), (rml_vocab.RR_NS.constant, Literal('constant'))]
+            
+            for pred in preds:
+                l = g.value(language_map, pred[0])
+                if l:
+                    term_maps.append(LanguageMap(language_map, pred[0], pred[1]))
+        
         return term_maps
     
 class LanguageBuilder():
@@ -563,28 +523,10 @@ class ConstantPredicate(Predicate):
         
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
-        term_maps = set()
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?p ?predicate
-                WHERE {
-                    ?p rr:predicate ?predicate
-                }
-            """,
-            initNs = {
-                "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML
-                })
-
-        if parent is not None:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
+        predicates = g.objects(parent, rml_vocab.RR_NS.predicate, True)
         
-        for row in qres:
-            term_maps.add(ConstantPredicate(row.predicate, row.p))
-           
-        return term_maps
+        return [ConstantPredicate(predicate, parent) for predicate in predicates]
+        
 
 
 class PredicateMap(Predicate):
@@ -651,53 +593,23 @@ class PredicateMap(Predicate):
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> Set[TermMap]:
         term_maps = []
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?predicateMap ?map ?termType
-                WHERE {
-                    {
-                        ?predicateMap rml:reference ?map
-                        BIND("reference" AS ?termType)
-                    }
-                    UNION
-                    {
-                        ?predicateMap rr:template ?map
-                        BIND("template" AS ?termType)
-                        
-                    }
-                    UNION
-                    {
-                        ?predicateMap rr:constant ?map
-                        BIND("constant" AS ?termType)
-                    }
-                    UNION
-                    {
-                        ?predicateMap fnml:functionValue ?map
-                        BIND("functionmap" AS ?termType)
-                    }
-                    
-            }""",
-            initNs = {
-                "rr": rml_vocab.RR,
-                "rml": rml_vocab.RML,
-                "fnml": rml_vocab.FNML
-                })
-
-        if parent is not None:
-            qres = g.query(query, initBindings = { "predicateMap": parent})
-        else:
-            qres = g.query(query)
         
-        for row in qres:
-            #pm = PredicateMap(row.tripleMap, row.reference, row.template, row.constant, row.predicateMap)
-            #pm = PredicateMap(row.tripleMap, row.map, row.termType, row.predicateMap)
-            pm = PredicateMap(row.predicateMap, predicate_expression=row.map, predicate_expression_type=row.termType)
+        predicate_maps = [(predicate_map, Literal('reference')) for predicate_map in g.objects(parent, rml_vocab.RML_NS.reference, True)]
+        predicate_maps += [(predicate_map, Literal('template')) for predicate_map in g.objects(parent, rml_vocab.RR_NS.template, True)]
+        predicate_maps += [(predicate_map, Literal('constant')) for predicate_map in g.objects(parent, rml_vocab.RR_NS.constant, True)]
+        predicate_maps += [(predicate_map, Literal('functionmap')) for predicate_map in g.objects(parent, rml_vocab.FNML_NS.functionValue, True)]
+        
+        for p_map in predicate_maps:
             
-            if row.termType == Literal("functionmap"):
-                pm.function_map = FunctionMap.from_rdf(g, row.map).pop()
+            predicate_expression = p_map[0]
+            predicate_expression_type = p_map[1]
+            pm = PredicateMap(parent, predicate_expression=predicate_expression, predicate_expression_type=predicate_expression_type)
             
+            if predicate_expression == Literal("functionmap"):
+                pm.function_map = FunctionMap.from_rdf(g, predicate_expression).pop()
+                
             term_maps.append(pm)
-           
+        
         return term_maps
     
     
@@ -763,7 +675,6 @@ class PredicateObjectMap(AbstractMap):
             preds = [pm.apply(data_source) for pm in self._predicates]
             objs = [om.apply(data_source) for om in self.__object_maps]
             
-            
             init = True
             preds_objs = None
             for predicates in preds:
@@ -823,37 +734,28 @@ class PredicateObjectMap(AbstractMap):
     
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None, parent_var: str = None) -> List['PredicateObjectMap']:
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?pom
-                WHERE {
-                    ?tm rr:predicateObjectMap ?pom .
-                    ?pom rr:predicate|rr:predicateMap ?pred; 
-                        rr:object|rr:objectMap ?om
-            }""", 
-            initNs = { "rr": rml_vocab.RR})
-
-        if parent is not None:
-            if not parent_var or parent_var != 'pom': 
-                qres = g.query(query, initBindings = { "tm": parent})
-            else:
-                qres = g.query(query, initBindings = { "pom": parent})
+        
+        term_maps = []
+        tm = None
+        pom = None
+        if not parent_var or parent_var != 'pom':
+            tm = parent
         else:
-            qres = g.query(query)
-            
-        lmbd = lambda graph : lambda row :  PredicateObjectMap.__build(graph, row)
-        return list(map(lmbd(g), qres))
+            pom = parent
+        
+        return [PredicateObjectMap.__build(g, pom) for tm, pred, pom in g.triples((tm, rml_vocab.RR_NS.predicateObjectMap, pom))]
+        
         
     
     @staticmethod
-    def __build(g, row):
+    def __build(g, pom):
         
-        predicates = PredicateBuilder.build(g, row.pom)
+        predicates = PredicateBuilder.build(g, pom)
         
-        object_maps = ObjectMapBuilder.build(g, row.pom)
+        object_maps = ObjectMapBuilder.build(g, pom)
         
         if predicates is not None and object_maps is not None:
-            return PredicateObjectMap(row.pom, predicates=predicates, object_maps=object_maps)
+            return PredicateObjectMap(pom, predicates=predicates, object_maps=object_maps)
         else:
             return None;
     
@@ -925,21 +827,15 @@ class Join(AbstractMap):
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List['Join']:
         
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?join ?child ?parent
-                WHERE {
-                    ?p rr:child ?child ;
-                        rr:parent ?parent
-            }""", 
-            initNs = { "rr": rml_vocab.RR})
-
-        if parent is not None:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
+        term_maps = []
+        
+        j_child = g.value(parent, rml_vocab.RR_NS.child, None)
+        j_parent = g.value(parent, rml_vocab.RR_NS.parent, None)
+        
+        if j_child and j_parent:
+            term_maps.append(Join(parent, child=j_child, parent=j_parent))
             
-        return [Join(row.join, child=row.child, parent=row.parent) for row in qres]
+        return term_maps
         
     
 
@@ -1068,28 +964,29 @@ class LogicalSource(AbstractMap):
                         df = None
                 elif isinstance(source, SQLSource) and source.valid() and (self.__query or self.__table_name):
                     
-                    db_protocol = None
-                    if source.driver == Literal('com.mysql.cj.jdbc.Driver'):
-                        db_protocol = 'mysql+mysqlconnector'
-                    elif source.driver == Literal('org.postgresql.Driver'):
-                        db_protocol = 'postgresql+psycopg2'
+                    protocol_delimiter = source.dsn.find(':')
+                    if protocol_delimiter >= 0:
                     
-                    if db_protocol:
-                    
-                        #engine = sa.create_engine(f'{db_protocol}://{source.username}:{source.password}@?dsn={source.dns}')
-                        engine = sa.create_engine(f'{db_protocol}://{source.username}:{source.password}@{source.dns}')
-
-                        
-                        query = self.__query if self.__query else f'SELECT * FROM {self.__table_name}'
-                        try:
-                            df = pd.read_sql(query, engine, parse_dates=['EntranceDate'])
-                        except Exception as e:
-                            print(e)
-                            df = pd.DataFrame()
-                        engine.dispose()
-                        
+                        db_protocol = source.dsn[:protocol_delimiter]
+                        db_server = source.dsn[protocol_delimiter+3:]
+                        if db_protocol:
+                            
+                            #engine = sa.create_engine(f'{db_protocol}://{source.username}:{source.password}@?dsn={source.dsn}')
+                            engine = sa.create_engine(f'{db_protocol}://{source.username}:{source.password}@{db_server}')
+    
+                            
+                            query = self.__query if self.__query else f'SELECT * FROM {self.__table_name}'
+                            try:
+                                df = pd.read_sql(query, engine, parse_dates=['EntranceDate'])
+                            except Exception as e:
+                                print(e)
+                                df = pd.DataFrame()
+                            engine.dispose()
+                            
+                        else:
+                            raise Exception(f'Database {source.driver} not supported.')
                     else:
-                        raise Exception(f'Database {source.driver} not supported.')
+                        raise Exception(f'No protocol found from DSN string {source.dsn}.')
                     
                 else:
                     df = None
@@ -1109,56 +1006,27 @@ class LogicalSource(AbstractMap):
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List[TermMap]:
         term_maps = []
-            
-        sparql = """
-            SELECT DISTINCT ?ls ?rf ?sep ?ite ?query ?tableName
-            WHERE {
-                ?tm rml:logicalSource|rr:logicalTable ?ls
-                OPTIONAL {?ls rml:referenceFormulation ?rf}
-                OPTIONAL {?ls crml:separator ?sep}
-                OPTIONAL {?ls rml:iterator ?ite}
-                OPTIONAL {?ls rml:query|rr:sqlQuery ?query}
-                OPTIONAL {?ls rr:tableName ?tableName}
-            }"""
-            #OPTIONAL {?ls crml:separator ?sep}
         
-        query = prepareQuery(sparql, 
-                initNs = { 
-                    "rml": rml_vocab.RML,
-                    "crml": rml_vocab.CRML,
-                    "csvw": rml_vocab.CSVW,
-                    "sd": rml_vocab.SD,
-                    "ql": rml_vocab.QL,
-                    "rr": rml_vocab.RR
-                })
+        rml = Namespace(rml_vocab.RML)
+        rr = Namespace(rml_vocab.RR)
+        crml = Namespace(rml_vocab.CRML)
         
-        if parent is not None:
-            qres = g.query(query, initBindings = { "tm": parent})
-        else:
-            qres = g.query(query)
-                    
-        for row in qres:
+        tps = g.triples((parent, rml.logicalSource|rr.logicalTable, None))
+        for s,p,o in tps:
+            ls = o
+            rf = g.value(ls, rml.referenceFormulation, None)
+            sep = g.value(ls, crml.separator, None)
+            ite = g.value(ls, rml.iterator, None)
+            query = g.value(ls, rml.query|rr.sqlQuery, None)
+            table_name = g.value(ls, rr.tableName, None)
             
-            '''
-            if row.sourcetype.value == 'uri' and ref_formulation == rml_vocab.CSV:
-                source = SourceBuilder.build_source(g, row.source, FileTableSource)
-            elif row.sourcetype.value == 'uri' and ref_formulation == rml_vocab.JSON_PATH:
-                source = SourceBuilder.build_source(g, row.source, FileJSONSource)
-            elif row.sourcetype.value == 'sparql':
-                source = SourceBuilder.build_source(g, row.source, SPARQLServiceSource)
-            '''
+            sources = Source.from_rdf(g, ls)
             
-            sources = Source.from_rdf(g, row.ls)
+            rf = rf if rf else rml_vocab.CSV
             
-            separator = row.sep.value if row.sep else ','
-            query = row.query.value if row.query else None
-            table_name = row.tableName.value if row.tableName else None
-            iterator = row.ite if row.ite else None
-            rf = row.rf if row.rf else rml_vocab.CSV
-            
-            ls = LogicalSource(row.ls, None, sources=sources, separator=separator, query=query,table_name= table_name, iterator=iterator, reference_formulation=rf)
+            ls = LogicalSource(ls, None, sources=sources, separator=sep, query=query, table_name= table_name, iterator=ite, reference_formulation=rf)
             term_maps.append(ls)
-            
+        
         return term_maps
     
 
@@ -1210,40 +1078,23 @@ class GraphMap(AbstractMap):
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List['GrapMap']:
         
-        sparql = """
-            SELECT DISTINCT ?gm ?g ?mode
-            WHERE {
-                { ?p rr:graphMap ?gm . 
-                  ?gm rr:constant ?g
-                  BIND("constant" AS ?mode)
-                }
-                UNION
-                { ?p rr:graph ?g
-                  BIND("constant" AS ?mode)
-                  BIND(BNODE() AS ?gm)
-                }
-                UNION
-                { ?p rr:graphMap ?gm . 
-                  ?gm rr:template ?g
-                  BIND("template" AS ?mode)
-                }
-                UNION
-                { ?p rr:graphMap ?gm .
-                  ?gm rml:reference ?g
-                  BIND("reference" AS ?mode)
-                }
-            }"""
+        rr = Namespace(rml_vocab.RR)
+        rml = Namespace(rml_vocab.RML)
         
-        query = prepareQuery(sparql, 
-                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML })
+        gmps = [GraphMap(gm, g.value(gm, rr.constant, None), term_type=Literal('constant')) for gm in g.objects(parent, rr.graphMap)]
         
-        if parent is not None:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
-                    
+        gmps += [GraphMap(BNode(), graph, term_type=Literal('constant')) for graph in g.objects(parent, rr.graph)]
         
-        return [GraphMap(row.gm, row.g, term_type=row.mode) for row in qres]
+        for gm in g.objects(parent, rr.graphMap):
+            v = g.value(gm, rr.template, None)
+            if v:
+                gmps.append(GraphMap(gm, v, term_type=Literal('template')))
+            
+            v = g.value(gm, rml.reference, None)
+            if v:
+                gmps.append(GraphMap(gm, v, term_type=Literal('reference')))
+        
+        return gmps
     
 class SubjectMap(AbstractMap):
     def __init__(self, map_id: IdentifiedNode, value: Node = None, **kwargs):
@@ -1324,40 +1175,31 @@ class SubjectMap(AbstractMap):
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
         
-        sparql = """
-            SELECT DISTINCT ?map ?sm ?termType ?tt
-            WHERE {
-                ?tm rr:subjectMap ?sm
-                { ?sm rr:template ?map
-                  BIND("template" AS ?termType)
-                }
-                UNION
-                { ?sm rr:constant ?map
-                  BIND("constant" AS ?termType)
-                }
-                UNION
-                { ?sm rml:reference ?map
-                  BIND("reference" AS ?termType)
-                }
-                UNION
-                {
-                 ?sm fnml:functionValue ?map
-                 BIND("functionmap" as ?termType)
-                }
-                OPTIONAL{?sm rr:termType ?tt}
-            }"""
+        term_maps = []
         
-        query = prepareQuery(sparql, 
-                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML, "fnml": rml_vocab.FNML})
+        preds = [(rml_vocab.RR_NS.template, Literal('template')),
+                 (rml_vocab.RR_NS.constant, Literal('constant')),
+                 (rml_vocab.RML_NS.reference, Literal('reference')),
+                 (rml_vocab.FNML_NS.functionValue, Literal('functionmap'))]
         
-        if parent is not None:
-            qres = g.query(query, initBindings = { "tm": parent})
-        else:
-            qres = g.query(query)
+        sbj_maps = g.objects(parent, rml_vocab.RR_NS.subjectMap, True)
+        for sbj_map in sbj_maps:
+            
+            tt = g.value(sbj_map, rml_vocab.RR_NS.termType, None)
+            
+            for pred in preds:
+                _map = g.value(sbj_map, pred[0], None)
+                if _map:
+                    d = {'map': _map,
+                         'sm': sbj_map,
+                         'termType': pred[1],
+                         'tt': tt
+                        }
+                    obj = type('obj', (object,), d)
                     
-        x = [SubjectMap.__create(parent, g, row) for row in qres]
+                    term_maps.append(SubjectMap.__create(parent, g, obj))
         
-        return x
+        return term_maps
         
     
     @staticmethod
@@ -1389,7 +1231,6 @@ class FunctionMap(AbstractMap):
             graph_add_all(g, pom.to_rdf())
         
     def apply(self, data_source: DataSource = None, **kwargs) -> np.array:
-        
         
         class Function:
 
@@ -1435,7 +1276,6 @@ class FunctionMap(AbstractMap):
                     raise NoneFunctionException()
             
             
-        
         if self in Framework.get_mapper().mappings:
             return Framework.get_mapper().mappings[self]
         else:
@@ -1454,8 +1294,7 @@ class FunctionMap(AbstractMap):
             
             
             try:
-                out = np.array([Function(row).evaluate() for row in pom_matrix], dtype=Function)
-                return out    
+                return np.array([Function(row).evaluate() for row in pom_matrix], dtype=Function)    
             except Exception as e:
                 return 
             
@@ -1466,32 +1305,11 @@ class FunctionMap(AbstractMap):
      
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List['FunctionMap']:
-        sparql = """
-            SELECT DISTINCT ?funVal ?pom ?logicalSource
-            WHERE {
-                ?funVal rr:predicateObjectMap ?pom   
-                OPTIONAL{?funVal rml:logicalSource ?logicalSource}
-            }"""
         
-        query = prepareQuery(sparql, 
-                initNs = { "rr": rml_vocab.RR, "rml": rml_vocab.RML, "fnml": rml_vocab.FNML})
-        
-        if parent is not None:
-            qres = g.query(query, initBindings = { "funVal": parent})
-        else:
-            qres = g.query(query)
-                    
-        poms = []
-        for row in qres:
-            pom_uri = row.pom
-            
-            pom = PredicateObjectMap.from_rdf(g, pom_uri, 'pom')
-            
-            for pom_occurrence in pom:
-                poms.append(pom_occurrence)
+        poms = [pom for pom_uri in g.objects(parent, rml_vocab.RR_NS.predicateObjectMap, True) for pom in PredicateObjectMap.from_rdf(g, pom_uri, 'pom')]
         
         return [FunctionMap(parent, poms)]
-
+        
 
 class TripleMapping():
     def __init__(self, _id: IdentifiedNode, **kwargs):
@@ -1601,10 +1419,6 @@ class TripleMappings(AbstractMap):
     
     
     def apply(self, data_source: DataSource = None) -> np.array:
-        start_time = time.time()
-        msg = "\t TripleMapping %s" % self._id
-        #print(msg)
-        
         if Framework.RML_STRICT and (len(self.subject_maps) > 1 or len(self.logical_sources) > 1):
             raise RMLModelException(f'The RML descriptor declares a TripleMapping with {len(self.subject_maps)} subject maps. Exactly 1 subject map must be declared.')
         
@@ -1620,16 +1434,12 @@ class TripleMappings(AbstractMap):
                 
                 sbj_maps = [subject_map.apply(data_source) for subject_map in self.subject_maps]
                 
-                grfs = [graph for graph in [graphs for graphs in [subject_map.graph_maps for subject_map in self.subject_maps]]]
-                
                 graph_maps = [graph_map.apply(data_source) for subject_map in self.subject_maps for graph_map in subject_map.graph_maps]
                 
                 
                 for sbj_representation in sbj_maps:
                     if self.predicate_object_maps is not None:
                             
-                        results = None
-                        
                         for pom in self.predicate_object_maps:
                             try:
                                 for object_map in pom.object_maps:
@@ -1640,8 +1450,6 @@ class TripleMappings(AbstractMap):
                                         df_left['__pyrml_sbj_representation__'] = sbj_representation
                                         parent_triple_mappings = object_map.parent_triples_maps
                                         
-                                        
-                                        results = pd.DataFrame(columns=['0_l', '0_r'])
                                         
                                         for parent_triple_mapping in parent_triple_mappings:
                                             for parent_logical_source in parent_triple_mapping.logical_sources:
@@ -1675,24 +1483,6 @@ class TripleMappings(AbstractMap):
                                                     df = df_tmp
                                                         
                                     else:
-                                
-                                        
-                                        '''
-                                        if isinstance(object_map, ReferencingObjectMap):
-                                            for ptm in object_map.parent_triples_maps:
-                                                
-                                                pandas_condition = ptm.condition
-                                                if pandas_condition:
-                                                    df_pom = df[eval(pandas_condition)]
-                                                    
-                                                    pom_representation = pom.apply(DataSource(df_pom))
-                                                    
-                                                        
-                                        
-                                        else:
-                                            
-                                            
-                                        ''' 
                                         pom_representation = pom.apply(data_source)   
                                             
                                     if pom_representation is not None:
@@ -1737,57 +1527,38 @@ class TripleMappings(AbstractMap):
                                                     
                                                     triples = pd.concat([triples, triples_df], axis=0)
                                             
-                            
                             except Exception as e:
                                 raise e
+                            
                 
-        
-        elapsed_time_secs = time.time() - start_time
-        
-        #msg = "\t Triples Mapping %s: %s secs" % (self._id, elapsed_time_secs)
-        msg = "\t\t done in %s secs" % (elapsed_time_secs)
         return triples.to_numpy(dtype=Node)  
     
          
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List[TermMap]:
         
-        sparql = """
-            SELECT DISTINCT ?tm
-            WHERE {
-                %PLACE_HOLDER%
-                ?tm rml:logicalSource|rr:logicalTable ?source ;
-                    rr:subjectMap ?sm
-            }"""
-        
-        if parent is not None:
-            sparql = sparql.replace("%PLACE_HOLDER%", "?p rr:parentTriplesMap ?tm . ")
-        else:
-            sparql = sparql.replace("%PLACE_HOLDER%", "")
-            
-        query = prepareQuery(sparql, 
-                initNs = { 
-                    "rr": rml_vocab.RR, 
-                    "rml": rml_vocab.RML,
-                    "crml": rml_vocab.CRML})
-        
+        tm = None
         if parent:
-            qres = g.query(query, initBindings = { "p": parent})
-        else:
-            qres = g.query(query)
+            tm = g.value(parent, rml_vocab.RR_NS.parentTriplesMap)
         
+        tps = g.triples((tm, rml_vocab.RML_NS.logicalSource|rml_vocab.RR_NS.logicalTable, None))
         
-        return set([TripleMappings.__build(g, row) for row in qres])
+        triple_mappings = []
+        for tm,p,o in tps:
+            if g.value(tm, rml_vocab.RR_NS.subjectMap):
+                triple_mappings.append(TripleMappings.__build(g, tm))
+        return triple_mappings
+        
     
     @staticmethod
-    def __build(g: Graph, row) -> 'TripleMappings':
-        sources = LogicalSource.from_rdf(g, row.tm)
+    def __build(g: Graph, tm) -> 'TripleMappings':
+        sources = LogicalSource.from_rdf(g, tm)
                         
-        subject_maps: List[SubjectMap] = SubjectMap.from_rdf(g, row.tm)
+        subject_maps: List[SubjectMap] = SubjectMap.from_rdf(g, tm)
         
-        predicate_object_maps = PredicateObjectMap.from_rdf(g, row.tm)
+        predicate_object_maps = PredicateObjectMap.from_rdf(g, tm)
         
-        condition = g.value(row.tm, URIRef(rml_vocab.CRML+'condition'), None)
+        condition = g.value(tm, URIRef(rml_vocab.CRML+'condition'), None)
         
         '''
         if row.pom:
@@ -1808,7 +1579,7 @@ class TripleMappings(AbstractMap):
                 predicate_object_maps.append(pom)
             
                      
-        return TripleMappings(row.tm, None, sources=sources, subject_maps=subject_maps, predicate_object_maps=predicate_object_maps, condition=condition, base=g.base)
+        return TripleMappings(tm, None, sources=sources, subject_maps=subject_maps, predicate_object_maps=predicate_object_maps, condition=condition, base=g.base)
         
     
     
@@ -1833,7 +1604,11 @@ class ReferencingObjectMap(ObjectMap):
         if self in Framework.get_mapper().mappings:
             return Framework.get_mapper().mappings[self]
         else:
-            ref = np.array([subject_map.apply(DataSource(source)) for tm in self.parent_triples_maps for subject_map in tm.subject_maps for logical_source in tm.logical_sources for source in logical_source.apply()], dtype=URIRef)
+            
+            if data_source:
+                ref = np.array([subject_map.apply(data_source) for tm in self.parent_triples_maps for subject_map in tm.subject_maps], dtype=URIRef)
+            else:
+                ref = np.array([subject_map.apply(DataSource(source)) for tm in self.parent_triples_maps for subject_map in tm.subject_maps for logical_source in tm.logical_sources for source in logical_source.apply()], dtype=URIRef)
             ret = np.concatenate(ref, axis=0, dtype=URIRef)
             Framework.get_mapper().mappings[self] = ret
             return ret
@@ -1843,28 +1618,20 @@ class ReferencingObjectMap(ObjectMap):
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> List[TermMap]:
         term_maps = []
         
+        join_conds = g.objects(parent, rml_vocab.RR_NS.joinCondition, True)
         
-        query_join = prepareQuery(
-            """
-            SELECT DISTINCT ?join
-            WHERE {
-                ?p rr:joinCondition ?join
-            }""", 
-            initNs = { "rr": rml_vocab.RR})
-    
-        join_qres = g.query(query_join, initBindings = { "p": parent})
-                
         joins: List[Join] = []
-        for row_join in join_qres:
-            
-            joins += Join.from_rdf(g, row_join.join)
-            
+        
+        for join_cond in join_conds:
+            joins += Join.from_rdf(g, join_cond)
+        
         parent_triples = TripleMappings.from_rdf(g, parent)
         if parent_triples:
             rmo = ReferencingObjectMap(parent, joins=joins, parent_triples_maps=parent_triples)
             term_maps.append(rmo)
            
         return term_maps
+        
     
 class Source(AbstractMap):
     
@@ -1873,71 +1640,44 @@ class Source(AbstractMap):
         
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode) -> 'Source':
-        sparql = '''
-            SELECT DISTINCT ?source ?sourcetype
-            WHERE {
-                {
-                    ?ls rml:source ?source
-                    FILTER(isLiteral(?source))
-                    BIND('plain' AS ?sourcetype)
-                }
-                UNION
-                {
-                    ?ls rml:source ?source .
-                    ?source csvw:url ?url
-                    OPTIONAL {?s csvw:dialect/csvw:delimiter ?sep}
-                    BIND('table' AS ?sourcetype)  
-                }
-                UNION
-                {
-                    ?ls rml:source ?source .
-                    ?source sd:endpoint ?s
-                    BIND('sparql' AS ?sourcetype)  
-                }
-                UNION
-                {
-                    ?ls rml:source ?source .
-                    ?source d2rq:jdbcDSN ?dsn
-                    BIND('sql' AS ?sourcetype)
-                }
-            }'''
-            
-        query = prepareQuery(sparql, 
-            initNs = { 
-                "rml": rml_vocab.RML,
-                "crml": rml_vocab.CRML,
-                "csvw": rml_vocab.CSVW,
-                "sd": rml_vocab.SD,
-                "ql": rml_vocab.QL,
-                "rr": rml_vocab.RR,
-                "d2rq": 'http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#'
-            })
-    
-        if parent is not None:
-            qres = g.query(query, initBindings = { "ls": parent})
-        else:
-            qres = g.query(query)
-            
-        # If the length of the result set is 0 we check that a connection to a relational database exists.        
-        if len(qres) == 0:
-            db = g.value(None, RDF.type, URIRef('http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#Database'), True)
-            if db:
-                return [SQLSource.from_rdf(g, db)]
-              
-        return [Source.__build(g, row) for row in qres]
-    
-    @staticmethod         
-    def __build(g, row):
+        term_maps = []
+        sources = g.objects(parent, rml_vocab.RML_NS.source, True)
         
-        sourcetype = row.sourcetype.value
+        for source in sources:
+            
+            sourcetype = None
+            
+            if isinstance(source, Literal):
+                sourcetype = Literal('plain')
+            elif g.value(source, rml_vocab.CSVW_NS.url):
+                sourcetype = Literal('table')
+            elif g.value(source, rml_vocab.SD_NS.endpoint):
+                sourcetype = Literal('sparql')
+            elif g.value(source, rml_vocab.D2RQ_NS.jdbcDSN):
+                sourcetype = Literal('sql')
+            else:
+                db = g.value(None, RDF.type, rml_vocab.D2RQ_NS.Database, True)
+                if db:
+                    return [SQLSource.from_rdf(g, db)]
+            
+            if sourcetype:
+                term_maps.append(Source.__build(g, source, sourcetype))
+                
+        return term_maps
+        
+        
+    @staticmethod         
+    def __build(g, source, sourcetype):
+        
+        sourcetype = sourcetype.value
         if sourcetype == 'plain':
-            return BaseSource.from_rdf(g, row.source)
+            return BaseSource.from_rdf(g, source)
         elif sourcetype == 'table':
-            return CSVSource.from_rdf(g, row.source)
+            return CSVSource.from_rdf(g, source)
         elif sourcetype == 'sparql':
-            return SPARQLSource.from_rdf(g, row.source)
+            return SPARQLSource.from_rdf(g, source)
         elif sourcetype == 'sql':
-            return SQLSource.from_rdf(g, row.source)
+            return SQLSource.from_rdf(g, source)
         else:
             return None
             
@@ -2056,7 +1796,7 @@ class SQLSource(Source):
     def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
         super().__init__(map_id, value)
         
-        self.__dns : Literal = kwargs['dns'] if 'dns' in kwargs else None
+        self.__dsn : Literal = kwargs['dsn'] if 'dsn' in kwargs else None
         self.__driver : Literal = kwargs['driver'] if 'driver' in kwargs else None
         self.__usermane: Literal = kwargs['username'] if 'username' in kwargs else None
         self.__password: Literal = kwargs['password'] if 'password' in kwargs else None
@@ -2064,8 +1804,8 @@ class SQLSource(Source):
         self.__fetch_size = kwargs['fetch_size'] if 'fetch_size' in kwargs else None
         
     @property
-    def dns(self):
-        return self.__dns
+    def dsn(self):
+        return self.__dsn
     
     @property
     def driver(self):
@@ -2089,23 +1829,23 @@ class SQLSource(Source):
     
     def valid(self):
         
-        return True if self.__dns and self.__usermane and self.__password else False
+        return True if self.__dsn and self.__usermane and self.__password else False
         
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode) -> Source:
         
         d2rq = Namespace('http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#')
         
-        dns = g.value(parent, d2rq.jdbcDSN, None, True)
+        dsn = g.value(parent, d2rq.jdbcDSN, None, True)
         username = g.value(parent, d2rq.username, None, True)
         password = g.value(parent, d2rq.password, None, True)
-        if dns and username and password:
+        if dsn and username and password:
             
             driver = g.value(parent, d2rq.jdbcDriver, None, True)
             result_size_limit = g.value(parent, d2rq.resultSizeLimit, None, True)
             fetch_size = g.value(parent, d2rq.fetchSize, None, True)
                 
-            return SQLSource(parent, dns, dns=dns, driver=driver, username=username, password=password, result_size_limit=result_size_limit, fetch_size=fetch_size)
+            return SQLSource(parent, dsn, dsn=dsn, driver=driver, username=username, password=password, result_size_limit=result_size_limit, fetch_size=fetch_size)
                 
         else:
             return None
@@ -2158,8 +1898,8 @@ class RMLFunction():
             out = self.__function(**input_values)
             return out
         except Exception as e:
-            pass
-            #print(e)
+            #pass
+            print(e)
                 
             #g += tm.apply()
     

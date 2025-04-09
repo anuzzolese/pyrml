@@ -15,7 +15,7 @@ class PyrmlCMDTool:
         parser.add_argument("-f", "--output-format", dest="format",
                     help="Output file format. Possible values are n3, nquads, nt, pretty-xml, trig, trix, turtle, and xml. If no choice is provided then NTRIPLES is assumed as default.", metavar="RDF out file")
         parser.add_argument("-m", action="store_true", default=False,
-                            help="Eneble conversion based on multiproccessing for fastening the computation.")
+                            help="Enable conversion based on multiproccessing for fastening the computation.")
         parser.add_argument("input", help="The input RML mapping file for enabling RDF conversion.")
         
 

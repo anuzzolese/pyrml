@@ -1,5 +1,3 @@
-from rdflib.tools.csv2rdf import column
-from builtins import isinstance
 __author__ = "Andrea Giovanni Nuzzolese"
 __email__ = "andrea.nuzzolese@cnr.it"
 __license__ = "Apache 2"
@@ -69,6 +67,14 @@ class TermMap(ABC):
             self._id = map_id
             
         self._function_map = None
+        
+    def __hash__(self):
+        return hash(self._id)
+    
+    def __eq__(self, other):
+        if isinstance(other, TermMap):
+            return self._id == other._id
+        return NotImplemented
         
     @property
     def function_map(self):
@@ -691,9 +697,16 @@ class Framework():
     register('turtle', Parser, 'pyrml.pyrml_rdflib', 'MyTurtleParser')
     register('ttl', Parser, 'pyrml.pyrml_rdflib', 'MyTurtleParser')
     
-    IRIFY = True
-    RML_STRICT = False
+    #IRIFY = True
+    #RML_STRICT = False
+    IRIFY = False
+    RML_STRICT = True
     INFER_LITERAL_DATATYPES = False
+    
+    @classmethod
+    def set_mapper(cls, mapper):
+        cls.delete_mapper()
+        cls.__mapper = mapper
     
     @classmethod
     def get_mapper(cls) -> Mapper:

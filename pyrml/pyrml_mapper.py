@@ -15,7 +15,7 @@ from jinja2 import Environment, FileSystemLoader
 from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all, Framework
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
-from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef
+from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef, Dataset
 from rdflib.term import Node, IdentifiedNode, BNode, _is_valid_uri, Literal
 from rdflib.parser import StringInputSource
 from rdflib.query import Processor, Result
@@ -135,19 +135,19 @@ class RMLConverter(Mapper):
         triple_mappings = RMLParser.parse(rml_mapping)
         
         if base:
-            g = ConjunctiveGraph(default_graph_base=base)
+            g = Dataset(default_graph_base=base)
         else:
-            g = ConjunctiveGraph()
+            g = Dataset()
         
         
-        print(f'The RML mapping contains {len(triple_mappings)} triple mappings.')
+        #print(f'The RML mapping contains {len(triple_mappings)} triple mappings.')
         start_time = time.time()
         if multiprocessed:
             start_time = time.time()
             processes = cpu_count()
         
             tms = np.array_split(np.array(list(triple_mappings)), processes)
-            pool = ThreadPool(initializer=initializer, initargs=(RMLConverter.__instance,), processes=processes)
+            pool = ThreadPool(initializer=initializer, initargs=(Framework.get_mapper(),), processes=processes)
             tuples_collection = pool.map(pool_map, tms)
             pool.close()
             pool.join()
@@ -159,64 +159,52 @@ class RMLConverter(Mapper):
         
         else:
             for tm in triple_mappings:
+                tuples = tm.apply()
+                for _tuple in tuples:
+                    g.add(_tuple)
+                
+                
+                '''
                 for _tuple in tm.apply():
                     
                     def normalize_iri(iri):
-                        if isinstance(iri, BNode):
-                            return iri
-                        elif isinstance(iri, URIRef):
-                            if str(iri).find(':') > 0:
+                        if isinstance(iri, IdentifiedNode):
+                            if isinstance(iri, BNode):
                                 return iri
+                            elif isinstance(iri, URIRef):
+                                if str(iri).find(':') > 0:
+                                    return iri
                         
-                        return URIRef(tm.base + str(iri))
+                            return URIRef(tm.base + str(iri))
+                        else:
+                            return iri
 
                         
-                    
-                    #print(f'TUPLE {_tuple}')
-                    _sub = self.__generate(_tuple[0])
-                    _pred = self.__generate(_tuple[1])
-                    _obj = self.__generate(_tuple[2])
-                    _graph = self.__generate(_tuple[3]) if len(_tuple) == 4 else None
-                    
-                    _sub = np.array([_sub], dtype=IdentifiedNode) if not isinstance(_sub, np.ndarray) else _sub
-                    _pred = np.array([_pred], dtype=URIRef) if not isinstance(_pred, np.ndarray) else _pred
-                    _obj = np.array([_obj], dtype=Node) if not isinstance(_obj, np.ndarray) else _obj
-                    
-                    if _graph:
-                        _graph = np.array([_graph], dtype=Node) if not isinstance(_graph, np.ndarray) else _graph
-                        _graph = [URIRef(_g) if not isinstance(_g, URIRef) else _g for _g in _graph]
-                    
-                    #_sub = [URIRef(_s) if not isinstance(_s, IdentifiedNode) else _s for _s in _sub]
-                    #_pred = [URIRef(_p) if not isinstance(_p, URIRef) else _p for _p in _pred]
-                    _sub = [normalize_iri(_s) for _s in _sub]
-                    _pred = [normalize_iri(_p) for _p in _pred]
-                    
-                    
-                    
-                    
                     try:
-                        for _s in _sub:
-                            if _is_valid_uri(_s):
-                                for _p in _pred:
-                                    if _is_valid_uri(_p):
-                                        for _o in _obj:
-                                            if _s and _p and _o != None:
-                                                
-                                                if _graph:
-                                                    for _g in _graph:
-                                                        if _is_valid_uri(_g):
-                                                            g.add((_s, _p, _o, _g))
-                                                else:
-                                                    g.add((_s, _p, _o))
+                        #print(f'TUPLE {_tuple}')
+                        _sub = normalize_iri(_tuple[0])
+                        _pred = normalize_iri(_tuple[1])
+                        _obj = normalize_iri(_tuple[2])
+                        _graph = _tuple[3] if len(_tuple) == 4 else None
+                        
+                        if _graph:
+                            if _is_valid_uri(_graph):
+                                g.add((_sub, _pred, _obj, URIRef(_graph)))
+                            else:
+                                g.add((_sub, _pred, _obj))
+                        else:
+                            g.add((_sub, _pred, _obj))                    
+                    
                     except Exception as e:
                         print(f'{_sub}, {_pred}, {_obj}')
                         print(f'{_sub} as type {type(_sub)}')
                         print(type(_obj))
                         print(_tuple)
                         raise e
-            
+                '''
+                
         elapsed_time_secs = time.time() - start_time
-        print(f'Mapping computed in {elapsed_time_secs} secs producing {len(g)} triples.')
+        #print(f'Mapping computed in {elapsed_time_secs} secs producing {len(g)} triples.')
         return g
     
     
@@ -322,13 +310,6 @@ class RMLConverter(Mapper):
                     raise e
     
     
-    def __generate(self, value):
-        '''
-        while value and isinstance(value, Generator):
-            value = next(value, None)
-        ''' 
-        return value
-    
     def get_mapping_dict(self):
         return self.__mapping_dict
     
@@ -376,7 +357,7 @@ def initializer(rml_converter):
     
     logger.disabled = True
     
-    RMLConverter.set_instance(rml_converter)
+    Framework.set_mapper(rml_converter)
         
 def pool_map(triple_mappings):
     g = Graph()
