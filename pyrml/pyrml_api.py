@@ -416,9 +416,13 @@ class TermUtils():
             column_key = column.strip("' ")
             
             if column_key not in columns:
+                column_key = f'{column_key}_r'
+            
+            if column_key not in columns:
                 column_key = column_key.lower()
-                if column_key not in columns:
-                    column_key = column_key.upper() 
+            
+            if column_key not in columns:
+                column_key = column_key.upper() 
             
             if column_key in columns:
                 
@@ -429,9 +433,6 @@ class TermUtils():
                     #s = re.sub(text, '', s)
                     return None
                 else:
-                    if column not in columns:
-                        column += "_l"
-                    
                     target_value = DataSource.get_from_row(row, columns, column_key)
                     
                     if target_value is None or (isinstance(target_value, float) and np.isnan(target_value)):
@@ -499,7 +500,7 @@ class TermUtils():
     @staticmethod
     def irify(string):
         
-        if string and isinstance(string, str) and Framework.IRIFY:
+        if string and isinstance(string, str) and PyRML.IRIFY:
             
             '''
             The followint regex pattern allows to check if the input string is provided as a valid URI. E.g. http://dati.isprambiente.it/rmn/Ancona.jpg
@@ -559,8 +560,8 @@ class EvalTransformer(Transformer):
     
     def f_name(self, name):
         #rml_converter = AbstractMap.get_rml_converter().get_instance()
-        if Framework.has_registerd_function(name[0]):
-            fun = Framework.get_registerd_function(name[0])
+        if PyRML.has_registerd_function(name[0]):
+            fun = PyRML.get_registerd_function(name[0])
             name[0] = fun.__qualname__
             
             return fun
@@ -688,7 +689,7 @@ class RMLModelException(Exception):
     def __init__(self, message):            
         super().__init__(message)
     
-class Framework():
+class PyRML():
     
     __mapper = None
     __function_registry = dict()

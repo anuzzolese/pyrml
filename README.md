@@ -2,7 +2,12 @@
 pyRML is a Python based engine for processing RML files. The [RDF Mapping Language](https://rml.io/specs/rml/) (RML) is a mapping language defined to express customized mapping rules from heterogeneous data structures and serializations to the RDF data model. RML is defined as a superset of the W3C-standardized mapping language [R2RML](https://rml.io/specs/rml/#bib-r2rml), aiming to extend its applicability and broaden its scope, adding support for data in other structured formats.
 ### Installation
 pyRML requires Python 3.
-Once the source code has been downloaded it is possible to install the Python package by means of pip. For example:
+To install the engine use the Python package manager `pip`, i.e.:
+```
+pip install pyrml-lib
+```
+
+Alternatively, it is possible to run `pip` under the root directory of source code of PyRML once it has been downloaded. For example:
 
 ```
 pip install .
@@ -19,34 +24,35 @@ pip install git+https://github.com/anuzzolese/pyrml
 It is possible to use pyRML either by means of its API or the command line tool that is provided along with the source package.
 
 ###### API
-The ```RMLConverter``` is the key class of pyRML. It accepts the path to an RML file as input and returns an RDF graph as output. The output graph is an instance of the class ```Graph``` provided by [RDFLib](https://github.com/RDFLib/rdflib).
+The ```Mapper``` is the key class of pyRML. It accepts the path to an RML file as input and returns an RDF graph as output. The output graph is an instance of the class ```Graph``` provided by [RDFLib](https://github.com/RDFLib/rdflib).
 ```python
-from pyrml import RMLConverter
+from pyrml import Mapper, PyRML
+from rdflib import Graph
 import os
 
-# Create an instance of the class RMLConverter.
-rml_converter = RMLConverter()
+# Create an instance of RML Mapper with PyRML.
+mapper : Mapper = PyRML.get_mapper()
 
 '''
 Invoke the method convert on the instance of class RMLConverter by:
  - using the file examples/artist/artist-map.ttl (see the examples in this repo);
  - obtaining an RDF graph as output.
 '''
+
 rml_file_path = os.path.join('examples', 'artists', 'artist-map.ttl')
-rdf_graph = rml_converter.convert(rml_file_path)
+rdf_graph : Graph  = mapper.convert(rml_file_path)
 
 # Print the triples contained into the RDF graph.
 for s,p,o in rdf_graph:
     print(s, p, o)
-
 ```
 
 ###### Command line tool
-The command line tool is implemented by the script ```converter.py```.
+The command line tool is implemented by the script ```pyrml-mapper.py```.
 Such a script can be used in the following way:
 
 ```bash
-python converter.py [-o RDF out file] [-f RDF out file] [-m] input
+python pyrml-mapper.py [-o RDF out file] [-f RDF out file] [-m] input
 ```
 
 where:
@@ -58,6 +64,5 @@ where:
 The following is an example about how to use the command line tool for processing the RML file available in ```examples/artists/artist-map.ttl```, thus converting the CSV files ```examples/artists/Artist.csv``` and ```examples/artists/Place.csv``` into an RDF graph serialized as TURTLE and stored into the file named ```artists_places.ttl```.
 
 ```bash
-python converter.py -o artists_places.ttl -f turtle examples/artists/artist-map.ttl
+python pyrml-mapper.py -o artists_places.ttl -f turtle examples/artists/artist-map.ttl
 ```
-

@@ -12,7 +12,7 @@ import time
 from typing import Dict, Generator, Union, List
 
 from jinja2 import Environment, FileSystemLoader
-from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all, Framework
+from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all, PyRML
 from pyrml.pyrml_core import TripleMappings, \
     TripleMapping, LogicalSource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef, Dataset
@@ -147,7 +147,7 @@ class RMLConverter(Mapper):
             processes = cpu_count()
         
             tms = np.array_split(np.array(list(triple_mappings)), processes)
-            pool = ThreadPool(initializer=initializer, initargs=(Framework.get_mapper(),), processes=processes)
+            pool = ThreadPool(initializer=initializer, initargs=(PyRML.get_mapper(),), processes=processes)
             tuples_collection = pool.map(pool_map, tms)
             pool.close()
             pool.join()
@@ -160,9 +160,38 @@ class RMLConverter(Mapper):
         else:
             for tm in triple_mappings:
                 tuples = tm.apply()
-                for _tuple in tuples:
-                    g.add(_tuple)
                 
+                def normalize_iri(_value):
+                    if isinstance(_value, IdentifiedNode):
+                        
+                        iri = _value
+                        if isinstance(_value, URIRef):
+                            if str(_value).find(':') > 0:
+                                iri = _value
+                            else:                      
+                                iri = URIRef(tm.base + str(_value))
+                        
+                        if _is_valid_uri(iri):
+                            return iri
+                        else:
+                            return None
+                    else:
+                        return _value
+                
+                for _tuple in tuples:
+                    subj = normalize_iri(_tuple[0])
+                    pred = normalize_iri(_tuple[1])
+                    obj = normalize_iri(_tuple[2])
+                    if subj and pred and obj:
+                        if len(_tuple)==4: 
+                            ctx = normalize_iri(_tuple[3])
+                            if ctx: 
+                                if ctx == rml_vocab.RR_NS.defaultGraph:
+                                    g.add((subj, pred, obj))
+                                else:
+                                    g.add((subj, pred, obj, ctx))
+                        else:
+                            g.add((subj, pred, obj))
                 
                 '''
                 for _tuple in tm.apply():
@@ -277,7 +306,11 @@ class RMLConverter(Mapper):
                     if _sub and _pred and _obj: 
                         if len(_tuple) == 4:
                             _ctx = self.__generate(_tuple[3])
-                            _t = (_sub, _pred, _obj, _ctx)
+                            print(f'{_ctx} - with type {type(_ctx)}')
+                            if _ctx == rml_vocab.RR_NS.defaultGraph:
+                                _t = (_sub, _pred, _obj)
+                            else:
+                                _t = (_sub, _pred, _obj, _ctx)
                         else:
                             _t = (_sub, _pred, _obj)
                         
@@ -297,7 +330,11 @@ class RMLConverter(Mapper):
                 _obj = self.__generate(_tuple[2]) 
                 if len(_tuple) == 4:
                     _ctx = self.__generate(_tuple[3])
-                    _t = (_sub, _pred, _obj, _ctx)
+                    print(f'{_ctx} - with type {type(_ctx)}')
+                    if _ctx == rml_vocab.RR_NS.defaultGraph:
+                        _t = (_sub, _pred, _obj)
+                    else:
+                        _t = (_sub, _pred, _obj, _ctx)
                 else:
                     _t = (_sub, _pred, _obj)
                 
@@ -357,7 +394,7 @@ def initializer(rml_converter):
     
     logger.disabled = True
     
-    Framework.set_mapper(rml_converter)
+    PyRML.set_mapper(rml_converter)
         
 def pool_map(triple_mappings):
     g = Graph()

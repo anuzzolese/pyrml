@@ -9,7 +9,7 @@ from typing import Dict, Union, Set, List, Type, Generator
 from SPARQLWrapper import SPARQLWrapper, CSV, JSON, XML, TSV
 from jsonpath_ng import parse
 from pandas.core.frame import DataFrame
-from pyrml.pyrml_api import Framework, DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException, RMLModelException
+from pyrml.pyrml_api import PyRML, DataSource, TermMap, AbstractMap, TermUtils, graph_add_all, Expression, FunctionNotRegisteredException, NoneFunctionException, ParameterNotExintingInFunctionException, RMLModelException
 from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF, Namespace, XSD
 from rdflib.plugins.sparql.processor import prepareQuery
@@ -58,20 +58,20 @@ class ConstantObjectMap(ObjectMap):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
             terms = np.array([self.value for x in range(n_rows)], dtype=URIRef)
             
-            Framework.get_mapper().mappings[self] = terms
+            PyRML.get_mapper().mappings[self] = terms
             
             return terms
     
     @staticmethod
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
         term_maps = set()
-        mappings_dict = Framework.get_mapper().get_mapping_dict()
+        mappings_dict = PyRML.get_mapper().get_mapping_dict()
         
         g.tr
         
@@ -190,8 +190,8 @@ class TermObjectMap(ObjectMap):
     
     def apply(self, data_source: DataSource, **kwargs) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             if self.map_type == Literal("reference"):
                 
@@ -277,7 +277,7 @@ class TermObjectMap(ObjectMap):
                             
                             
                             def get_item(_item):
-                                if not Framework.INFER_LITERAL_DATATYPES:
+                                if not PyRML.INFER_LITERAL_DATATYPES:
                                     return Literal(str(_item))
                                 
                                 if isinstance(_item, np.datetime64):
@@ -316,7 +316,7 @@ class TermObjectMap(ObjectMap):
                 return None
             
             
-            Framework.get_mapper().mappings[self] = terms
+            PyRML.get_mapper().mappings[self] = terms
             
             return terms
                 
@@ -386,8 +386,8 @@ class ConstantLanguage(Language):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
             terms = np.array([self._constant for x in range(n_rows)])
@@ -421,8 +421,8 @@ class LanguageMap(Language):
         
     def apply(self, data_source: DataSource) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         
         else:
         
@@ -454,7 +454,7 @@ class LanguageMap(Language):
             else:
                 terms = None
                 
-            Framework.get_mapper().mappings[self] = terms
+            PyRML.get_mapper().mappings[self] = terms
             return terms    
         
     @staticmethod
@@ -511,13 +511,13 @@ class ConstantPredicate(Predicate):
     
     def apply(self, data_source: DataSource) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
             terms = np.array([URIRef(self._constant) if self._constant else None for x in range(n_rows)], dtype=URIRef)
             
-            Framework.get_mapper().mappings[self] = terms 
+            PyRML.get_mapper().mappings[self] = terms 
             
             return terms
         
@@ -557,8 +557,8 @@ class PredicateMap(Predicate):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             if self.predicate_expression_type == Literal("functionmap") and self.function_map:
                 terms = self.function_map.apply(data_source, rdf_term_type=URIRef)
@@ -584,7 +584,7 @@ class PredicateMap(Predicate):
                     terms = np.array([l(term) for term in data], dtype=URIRef)
                 
         
-            Framework.get_mapper().mappings[self] = terms
+            PyRML.get_mapper().mappings[self] = terms
         
             return terms
         
@@ -618,34 +618,10 @@ class PredicateBuilder():
     @staticmethod
     def build(g: Graph, pom: IdentifiedNode) -> List[Predicate]:
         
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?pred ?predtype
-                WHERE {
-                    { 
-                        ?pom rr:predicate ?pred
-                        BIND('shortconstant' as ?predtype) 
-                    }
-                    UNION
-                    { 
-                        ?pom rr:predicateMap ?pred
-                        BIND('map' as ?predtype) 
-                    }
-            }""", 
-            initNs = { "rr": rml_vocab.RR})
-
-        qres = g.query(query, initBindings = { "pom": pom})
         
-        predicates = [] 
-        for res in qres:
-            predtype = res.predtype
-            predicate_ref = res.pred
-            if predtype.value == 'shortconstant':
-                predicates += [ConstantPredicate(predicate_ref, pom)]
-            else:
-                predicates += PredicateMap.from_rdf(g, predicate_ref)
-                
-            
+        predicates = [ConstantPredicate(pred, pred) for pred in g.objects(pom, rml_vocab.RR_NS.predicate, True)]
+        predicates += [PredicateMap.from_rdf(pred, pom) for pred in g.objects(pom, rml_vocab.RR_NS.predicateMap, True)]
+        
         return predicates
         
 
@@ -668,13 +644,12 @@ class PredicateObjectMap(AbstractMap):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         
         else:
             preds = [pm.apply(data_source) for pm in self._predicates]
             objs = [om.apply(data_source) for om in self.__object_maps]
-            
             init = True
             preds_objs = None
             for predicates in preds:
@@ -728,7 +703,8 @@ class PredicateObjectMap(AbstractMap):
             
             #preds_objs.reshape(shp[1], shp[0])
             
-            Framework.get_mapper().mappings[self] = preds_objs
+            PyRML.get_mapper().mappings[self] = preds_objs
+            
             return preds_objs
     
     
@@ -898,8 +874,8 @@ class LogicalSource(AbstractMap):
         return ns
     
     def apply(self, row: pd.Series = None) -> DataFrame:
-        if self.id in Framework.get_mapper().logical_sources:
-            dfs = Framework.get_mapper().logical_sources[self.id]
+        if self.id in PyRML.get_mapper().logical_sources:
+            dfs = PyRML.get_mapper().logical_sources[self.id]
         else: 
             if self.__separator is None:
                 sep = ','
@@ -996,7 +972,7 @@ class LogicalSource(AbstractMap):
                 
                 dfs.append(df)
                 
-                Framework.get_mapper().logical_sources[self.id] = dfs
+                PyRML.get_mapper().logical_sources[self.id] = dfs
                 
         return dfs
             
@@ -1042,8 +1018,8 @@ class GraphMap(AbstractMap):
         
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             
             if self.term_type == Literal("reference"):
@@ -1071,7 +1047,7 @@ class GraphMap(AbstractMap):
                 terms = None
         
         
-            Framework.get_mapper().mappings[self] = terms
+            PyRML.get_mapper().mappings[self] = terms
             return terms 
         
 
@@ -1126,8 +1102,8 @@ class SubjectMap(AbstractMap):
                 
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             
             if self.term_type == Literal("functionmap") and self.function_map:
@@ -1168,7 +1144,7 @@ class SubjectMap(AbstractMap):
                         
             terms = np.array([l(term) for term in terms], dtype=URIRef)
                 
-            Framework.get_mapper().mappings[self] = terms
+            PyRML.get_mapper().mappings[self] = terms
             return terms
     
     
@@ -1255,8 +1231,8 @@ class FunctionMap(AbstractMap):
                 
             def evaluate(self):
                 if self.__function_ref:
-                    if Framework.has_registerd_function(self.__function_ref):
-                        fun = Framework.get_registerd_function(self.__function_ref)
+                    if PyRML.has_registerd_function(self.__function_ref):
+                        fun = PyRML.get_registerd_function(self.__function_ref)
                         
                         if 'rdf_term_type' in kwargs:
                             try:
@@ -1276,8 +1252,8 @@ class FunctionMap(AbstractMap):
                     raise NoneFunctionException()
             
             
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
         
             function_ref = None
@@ -1419,7 +1395,7 @@ class TripleMappings(AbstractMap):
     
     
     def apply(self, data_source: DataSource = None) -> np.array:
-        if Framework.RML_STRICT and (len(self.subject_maps) > 1 or len(self.logical_sources) > 1):
+        if PyRML.RML_STRICT and (len(self.subject_maps) > 1 or len(self.logical_sources) > 1):
             raise RMLModelException(f'The RML descriptor declares a TripleMapping with {len(self.subject_maps)} subject maps. Exactly 1 subject map must be declared.')
         
         triples : DataFrame = pd.DataFrame(columns=['s', 'p', 'o'], dtype=object)
@@ -1446,8 +1422,9 @@ class TripleMappings(AbstractMap):
                                     
                                     df_join = None
                                     if isinstance(object_map, ReferencingObjectMap) and object_map.join_conditions:
-                                        df_left = df
+                                        df_left = df.copy()
                                         df_left['__pyrml_sbj_representation__'] = sbj_representation
+                                        
                                         parent_triple_mappings = object_map.parent_triples_maps
                                         
                                         
@@ -1472,9 +1449,8 @@ class TripleMappings(AbstractMap):
                                                         right_ons.append(join_condition.parent.value)
                                                     
                                                     if not df_left.empty and not df.empty:
-                                                        
                                                         try: 
-                                                            df_join = df_left.merge(df, how='inner', suffixes=(None, "_r"), left_on=left_ons, right_on=right_ons, sort=False)
+                                                            df_join = df_left.merge(df, how='inner', suffixes=("_s", "_r"), left_on=left_ons, right_on=right_ons, sort=False)
                                                         except ValueError:
                                                             df_join = pd.concat([df_left, df], axis=1, join='inner', sort=False)
                                                     
@@ -1601,8 +1577,8 @@ class ReferencingObjectMap(ObjectMap):
     
     def apply(self, data_source: DataSource = None) -> np.array:
         
-        if self in Framework.get_mapper().mappings:
-            return Framework.get_mapper().mappings[self]
+        if self in PyRML.get_mapper().mappings:
+            return PyRML.get_mapper().mappings[self]
         else:
             
             if data_source:
@@ -1610,7 +1586,7 @@ class ReferencingObjectMap(ObjectMap):
             else:
                 ref = np.array([subject_map.apply(DataSource(source)) for tm in self.parent_triples_maps for subject_map in tm.subject_maps for logical_source in tm.logical_sources for source in logical_source.apply()], dtype=URIRef)
             ret = np.concatenate(ref, axis=0, dtype=URIRef)
-            Framework.get_mapper().mappings[self] = ret
+            PyRML.get_mapper().mappings[self] = ret
             return ret
         
     
