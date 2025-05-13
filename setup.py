@@ -12,7 +12,8 @@ install_requires=[
    'numpy>=1.26.4,<=1.26.4',
    'python-slugify[unidecode]>=7.0.0,<=7.0.0',
    'lxml>=5.1.0,<=5.1.0',
+   'SQLAlchemy>=1.4.46,<=1.4.46'
 ]
 
-setup(name='pyrml-lib', version='0.5.0',
+setup(name='pyrml-lib', version='0.6.0',
     packages=find_packages(), package_data={'pyrml': ['grammar.lark']}, install_requires=install_requires)

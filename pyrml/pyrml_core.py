@@ -20,8 +20,6 @@ import pandas as pd
 import pyrml.rml_vocab as rml_vocab
 import xml.etree.ElementTree as ET
 import sqlalchemy as sa
-from biorun.libs.placlib import NONE
-from openpyxl.chart import data_source
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
