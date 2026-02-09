@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import logging
 import os, codecs
 from pathlib import Path
-from pyrml.pyrml_mapper import RMLConverter
+from pyrml.pyrml_core import PyRML
 from pyrml.functions import *
 
 
@@ -24,7 +24,7 @@ class PyrmlCMDTool:
         logging.basicConfig(level=logging.DEBUG)
         
     def do_map(self):
-        rml_converter =Framework.get_mapper()
+        rml_converter =PyRML.get_mapper()
 
         #Inizio aggiunta per recogito
         #rml_converter.register_function("get_id", get_id)
