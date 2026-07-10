@@ -14,7 +14,7 @@ from typing import Dict, Generator, Union, List
 from jinja2 import Environment, FileSystemLoader
 from pyrml.pyrml_api import Mapper, MappingsDict, graph_add_all, PyRML
 from pyrml.pyrml_core import TripleMappings, \
-    TripleMapping, LogicalSource
+    TripleMapping, LogicalSource, RMLResource
 from rdflib import Graph, Namespace, plugin, ConjunctiveGraph, URIRef, Dataset
 from rdflib.term import Node, IdentifiedNode, BNode, _is_valid_uri, Literal
 from rdflib.parser import StringInputSource
@@ -44,7 +44,7 @@ class RMLParser():
         g.parse(source, format=format)
         
         
-        return TripleMappings.from_rdf(g)
+        return RMLResource(TripleMappings.from_rdf(g))
         
         '''
         g_2 = Graph()
@@ -132,7 +132,7 @@ class RMLConverter(Mapper):
             
             rml_mapping = StringInputSource(rml_mapping_template.encode('utf-8'))
         
-        triple_mappings = RMLParser.parse(rml_mapping)
+        rml_resource: RMLResource = RMLParser.parse(rml_mapping)
         
         if base:
             g = Dataset(default_graph_base=base)
@@ -146,7 +146,7 @@ class RMLConverter(Mapper):
             start_time = time.time()
             processes = cpu_count()
         
-            tms = np.array_split(np.array(list(triple_mappings)), processes)
+            tms = np.array_split(np.array(list(rml_resource.triples_maps)), processes)
             pool = ThreadPool(initializer=initializer, initargs=(PyRML.get_mapper(),), processes=processes)
             tuples_collection = pool.map(pool_map, tms)
             pool.close()
@@ -158,7 +158,7 @@ class RMLConverter(Mapper):
                     g.add(_tuple)
         
         else:
-            for tm in triple_mappings:
+            for tm in rml_resource.triples_maps:
                 tuples = tm.apply()
                 
                 def normalize_iri(_value):
@@ -356,6 +356,9 @@ class RMLConverter(Mapper):
     def get_function_registry(self):
         return self.__function_registry
     
+    
+PyRMLMapper = RMLConverter
+
 class LogicalSourceIndex():
     
     def __init__(self, ls: LogicalSource, triple_maps: List[TripleMapping] = None, parent_ls: LogicalSource = None, left_joins:List[str]=None, right_joins:List[str]=None):

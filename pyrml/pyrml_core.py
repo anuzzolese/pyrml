@@ -13,13 +13,14 @@ from pyrml.pyrml_api import PyRML, DataSource, TermMap, AbstractMap, TermUtils, 
 from rdflib import URIRef, Graph, IdentifiedNode
 from rdflib.namespace import RDF, Namespace, XSD
 from rdflib.plugins.sparql.processor import prepareQuery
-from rdflib.term import Node, BNode, Literal, Identifier, URIRef, _is_valid_langtag, _castPythonToLiteral, _castLexicalToPython
+from rdflib.term import Node, BNode, Literal, Identifier, URIRef, _is_valid_langtag, _castPythonToLiteral, _castLexicalToPython 
 
 import numpy as np
 import pandas as pd
 import pyrml.rml_vocab as rml_vocab
 import xml.etree.ElementTree as ET
 import sqlalchemy as sa
+from owlready2 import prop
 
 
 __author__ = "Andrea Giovanni Nuzzolese"
@@ -35,25 +36,27 @@ __status__ = "Alpha"
 class ObjectMap(AbstractMap):
     
     def to_rdf(self):
-        g = Graph()
-        g.add((self._id, RDF.type, rml_vocab.OBJECT_MAP_CLASS))
+        g = super().to_rdf()
+        g.add((self, RDF.type, rml_vocab.OBJECT_MAP_CLASS))
         return g
     
     
 class ConstantObjectMap(ObjectMap):
     def __init__(self, value: Node, map_id: URIRef = None):
-        super().__init__(map_id, value)
+        super().__init__(map_id, constant=value)
         self.__value = value
+        
+    def to_rdf(self) -> Graph:
+        g = Graph()
+        
+        g.add((self, rml_vocab.OBJECT, self.constant))
+            
+        return g
         
     @property
     def value(self):
         return self.__value
         
-    def to_rdf(self) -> Graph:
-        g = super().to_rdf()
-        g.add((self._id, rml_vocab.CONSTANT, self.__value))
-        return g
-    
     def apply(self, data_source: DataSource = None) -> np.array:
         
         if self in PyRML.get_mapper().mappings:
@@ -70,8 +73,6 @@ class ConstantObjectMap(ObjectMap):
     def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
         term_maps = set()
         mappings_dict = PyRML.get_mapper().get_mapping_dict()
-        
-        g.tr
         
         query = prepareQuery(
             """
@@ -124,10 +125,10 @@ class TermObjectMap(ObjectMap):
     #    self._datatype = datatype
         
         
-    def __init__(self, map_id: URIRef, value: Node, **kwargs):
+    def __init__(self, map_id: URIRef, constant: Node = None, template: Node = None, reference: Node = None, **kwargs):
         #def __init__(self, map: Node, map_type: Literal, term_type : URIRef = rml_vocab.LITERAL, language : 'Language' = None, datatype : URIRef = None, map_id: URIRef = None):
-        super().__init__(map_id, value)
-        self.__value = value
+        super().__init__(map_id, constant, template, reference)
+        self.__value = super().get_mapped_entity()
         self.__map_type = kwargs['map_type'] if 'map_type' in kwargs else None
         self.__term_type = kwargs['term_type'] if 'term_type' in kwargs else rml_vocab.LITERAL
         self.__language : Language = kwargs['language'] if 'language' in kwargs else None
@@ -161,27 +162,27 @@ class TermObjectMap(ObjectMap):
             predicate = rml_vocab.REFERENCE
         elif self.map_type == Literal("constant"):
             predicate = rml_vocab.CONSTANT
-            g.add((self._id, rml_vocab.CONSTANT, self._reference))
+            g.add((self, rml_vocab.CONSTANT, self._reference))
         elif self.map_type == Literal("template"):
             predicate = rml_vocab.TEMPLATE
-            g.add((self._id, rml_vocab.TEMPLATE, self._template))
+            g.add((self, rml_vocab.TEMPLATE, self._template))
             if self._term_type is not None:
-                g.add((self._id, rml_vocab.TERM_TYPE, self._term_type))
+                g.add((self, rml_vocab.TERM_TYPE, self._term_type))
         elif self.map_type == Literal("functionmap"):
             predicate = rml_vocab.FUNCTION_VALUE
             
             
         if predicate:     
-            g.add((self._id, predicate, self._mapped_entity))
+            g.add((self, predicate, self._mapped_entity))
             
-        if self._language is not None:
+        if self.language is not None:
             lang_g = self.language.to_rdf()
             g = graph_add_all(g, lang_g)
-        elif self._datatype is not None:
-            g.add((self._id, rml_vocab.DATATYPE, self.datatype))
+        elif self.datatype is not None:
+            g.add((self, rml_vocab.DATATYPE, self.datatype))
         
-        if self._term_type is not None:
-            g.add((self._id, rml_vocab.TERM_TYPE, self.term_type))
+        if self.term_type is not None:
+            g.add((self, rml_vocab.TERM_TYPE, self.term_type))
             
         return g
     
@@ -332,15 +333,23 @@ class TermObjectMap(ObjectMap):
         maps += [(m, Literal('constant')) for m in g.objects(parent, rml_vocab.RR_NS.constant, True)]
         maps += [(m, Literal('functionmap')) for m in g.objects(parent, rml_vocab.FNML_NS.functionValue, True)]
         
-        for map in maps:
+        for _map in maps:
             term_object_map = parent
             
             language = LanguageBuilder.build(g, term_object_map)
             
-            object_map = map[0]
-            map_type=map[1]
-            tom = TermObjectMap(term_object_map, object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
-            if map_type == Literal("functionmap"):
+            object_map = _map[0]
+            map_type=_map[1]
+            #tom = TermObjectMap(term_object_map, object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
+            
+            if map_type == Literal("reference"):
+                tom = TermObjectMap(term_object_map, reference=object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
+            elif map_type == Literal("constant"):
+                tom = TermObjectMap(term_object_map, constant=object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
+            elif map_type == Literal("template"):
+                tom = TermObjectMap(term_object_map, template=object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
+            elif map_type == Literal("functionmap"):
+                tom = TermObjectMap(term_object_map, map_type=map_type, term_type=tt, language=language, datatype=datatype)
                 tom._function_map = FunctionMap.from_rdf(g, object_map).pop()
             
             term_maps.append(tom)
@@ -351,33 +360,19 @@ class TermObjectMap(ObjectMap):
 
 
 class Language(AbstractMap):
-    def __init__(self, map_id: URIRef = None, mapped_entity: URIRef = None):
-        super().__init__(map_id, mapped_entity)
+    def __init__(self, map_id: URIRef = None, constant: Node = None, template: Node = None, reference: Node = None):
+        super().__init__(map_id, constant=constant, template=template, reference=reference)
         
-    @abstractmethod
-    def to_rdf(self) -> Graph:
-        pass
-    
-    @abstractmethod
-    def apply(self, row):
-        pass
-        
-    @staticmethod
-    @abstractmethod
-    def from_rdf(g: Graph, parent: Union[BNode, URIRef] = None) -> Set[TermMap]:
-        pass
-    
 
 class ConstantLanguage(Language):
     
-    def __init__(self, constant: URIRef, map_id: URIRef = None):
-        super().__init__(map_id, constant)
-        self._constant = constant
+    def __init__(self, constant: Node, map_id: URIRef = None):
+        super().__init__(map_id, constant=constant)
         
     def to_rdf(self) -> Graph:
-        g = super().to_rdf()
+        g = Graph()
         
-        g.add((self._id, rml_vocab.LANGUAGE, self._constant))
+        g.add((self, rml_vocab.LANGUAGE, self.constant))
             
         return g
     
@@ -388,7 +383,7 @@ class ConstantLanguage(Language):
             return PyRML.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
-            terms = np.array([self._constant for x in range(n_rows)])
+            terms = np.array([self.constant for x in range(n_rows)])
             
             
             return terms
@@ -403,15 +398,16 @@ class ConstantLanguage(Language):
 
 class LanguageMap(Language):
         
-    def __init__(self, map_id: IdentifiedNode = None, **kwargs):
-        super().__init__(map_id)
+    
+    def __init__(self, map_id: IdentifiedNode = None, constant: Node = None, template: Node = None, reference: Node = None, **kwargs):
+        super().__init__(map_id, constant=constant, template=template, reference=reference)
         
-        self.__value: Literal = kwargs['value'] if 'value' in kwargs else None 
+        #self.__value: Literal = kwargs['value'] if 'value' in kwargs else None 
         self.__map_type: Literal = kwargs['map_type'] if 'map_type' in kwargs else None
         
     @property
     def value(self):
-        return self.__value
+        return self._mapped_entity
     
     @property
     def map_type(self):
@@ -464,12 +460,26 @@ class LanguageMap(Language):
         for language_map in language_maps:
             preds = [(rml_vocab.RML_NS.reference, Literal('reference')), (rml_vocab.RR_NS.template, Literal('template')), (rml_vocab.RR_NS.constant, Literal('constant'))]
             
-            for pred in preds:
-                l = g.value(language_map, pred[0])
-                if l:
-                    term_maps.append(LanguageMap(language_map, pred[0], pred[1]))
-        
+            lang = g.value(language_map, rml_vocab.RML_NS.reference)
+            if lang:
+                term_maps.append(LanguageMap(language_map, reference=lang, map_type=Literal('reference')))
+            
+            lang = g.value(language_map, rml_vocab.RR_NS.template)
+            if lang:
+                term_maps.append(LanguageMap(language_map, template=lang, map_type=Literal('template')))
+                
+            lang = g.value(language_map, rml_vocab.RR_NS.constant)
+            if lang:
+                term_maps.append(LanguageMap(language_map, constant=lang, map_type=Literal('constant')))
+             
         return term_maps
+    
+    def to_rdf(self)->Graph:
+        g = super().to_rdf()
+        
+        g.add((self, RDF.type, rml_vocab.RML_NS.LanguageMap))
+        
+        return g
     
 class LanguageBuilder():
     
@@ -490,19 +500,23 @@ class LanguageBuilder():
             return ret.pop()
     
 class Predicate(AbstractMap):
-    def __init__(self, map_id: URIRef = None, mapped_entity: URIRef = None):
-        super().__init__(map_id, mapped_entity)
+    
+    def __init__(self, map_id: URIRef = None, 
+                 constant: Union[Node,str] = None,
+                 template: Union[Node,str] = None,
+                 reference: Union[Node,str] = None):
+        super().__init__(map_id, constant, template, reference)
 
 class ConstantPredicate(Predicate):
     
-    def __init__(self, constant: URIRef, map_id: URIRef = None):
-        super().__init__(map_id, constant)
-        self._constant = constant
+    def __init__(self, constant: Union[Node,str], map_id: URIRef = None):
+        constant = URIRef(constant) if not isinstance(constant, URIRef) else constant
+        
+        super().__init__(map_id, constant=constant)
         
     def to_rdf(self) -> Graph:
-        g = super().to_rdf()
-        
-        g.add((self._id, rml_vocab.PREDICATE, self._constant))
+        g = Graph()
+        g.add((self, rml_vocab.PREDICATE, self.constant))
             
         return g
     
@@ -513,7 +527,7 @@ class ConstantPredicate(Predicate):
             return PyRML.get_mapper().mappings[self]
         else:
             n_rows = data_source.data.shape[0]
-            terms = np.array([URIRef(self._constant) if self._constant else None for x in range(n_rows)], dtype=URIRef)
+            terms = np.array([URIRef(self.constant) if self.constant else None for x in range(n_rows)], dtype=URIRef)
             
             PyRML.get_mapper().mappings[self] = terms 
             
@@ -537,10 +551,20 @@ class PredicateMap(Predicate):
     #    
     #    self._triple_mapping = triple_mapping
         
-    def __init__(self, map_id: IdentifiedNode = None, **kwargs):
-        super().__init__(map_id)
+    def __init__(self, 
+                 map_id: IdentifiedNode = None, 
+                 constant: Union[Node, str] = None, 
+                 template: Union[Node, str] = None, 
+                 reference: Union[Node, str] = None,
+                 function_map: Node = None,
+                 **kwargs):
         
-        self.__predicate_expression: Literal = kwargs['predicate_expression'] if 'predicate_expression' in kwargs else None 
+        super().__init__(map_id, constant=constant, template=template, reference=reference)
+        
+        if function_map:
+            self._mapped_entity = function_map
+            
+        self.__predicate_expression: self._mapped_entity 
         self.__predicate_expression_type: Literal = kwargs['predicate_expression_type'] if 'predicate_expression_type' in kwargs else None
         
         
@@ -592,23 +616,27 @@ class PredicateMap(Predicate):
     def from_rdf(g: Graph, parent: IdentifiedNode = None) -> Set[TermMap]:
         term_maps = []
         
-        predicate_maps = [(predicate_map, Literal('reference')) for predicate_map in g.objects(parent, rml_vocab.RML_NS.reference, True)]
-        predicate_maps += [(predicate_map, Literal('template')) for predicate_map in g.objects(parent, rml_vocab.RR_NS.template, True)]
-        predicate_maps += [(predicate_map, Literal('constant')) for predicate_map in g.objects(parent, rml_vocab.RR_NS.constant, True)]
-        predicate_maps += [(predicate_map, Literal('functionmap')) for predicate_map in g.objects(parent, rml_vocab.FNML_NS.functionValue, True)]
+        predicate_maps = [{'reference': predicate_map, 'predicate_expression_type': Literal('reference')} for predicate_map in g.objects(parent, rml_vocab.RML_NS.reference, True)]
+        predicate_maps += [{'template': predicate_map, 'predicate_expression_type': Literal('template')} for predicate_map in g.objects(parent, rml_vocab.RR_NS.template, True)]
+        predicate_maps += [{'constant': predicate_map, 'predicate_expression_type': Literal('constant')} for predicate_map in g.objects(parent, rml_vocab.RR_NS.constant, True)]
+        predicate_maps += [{'function_map': predicate_map, 'predicate_expression_type': Literal('functionmap')} for predicate_map in g.objects(parent, rml_vocab.FNML_NS.functionValue, True)]
         
         for p_map in predicate_maps:
             
-            predicate_expression = p_map[0]
-            predicate_expression_type = p_map[1]
-            pm = PredicateMap(parent, predicate_expression=predicate_expression, predicate_expression_type=predicate_expression_type)
+            #predicate_expression = p_map[0]
+            #predicate_expression_type = p_map[1]
             
-            if predicate_expression == Literal("functionmap"):
-                pm.function_map = FunctionMap.from_rdf(g, predicate_expression).pop()
-                
+            pm = PredicateMap(parent, **p_map)
+            
             term_maps.append(pm)
         
         return term_maps
+    
+    def to_rdf(self):
+        g = super().to_rdf()
+        g.add((self, RDF.type, rml_vocab.RML_NS.PredicateMap))
+        
+        return g
     
     
 class PredicateBuilder():
@@ -626,11 +654,29 @@ class PredicateBuilder():
 class PredicateObjectMap(AbstractMap):
     
     
-    def __init__(self, map_id: IdentifiedNode, **kwargs):
+    def __init__(self, 
+                 map_id: IdentifiedNode, 
+                 predicates: Union[List[Predicate], Predicate], 
+                 object_maps: Union[List[ObjectMap], ObjectMap]):
         
         super().__init__(map_id)
-        self._predicates: List[Predicate] = kwargs['predicates'] if 'predicates' in kwargs else None
-        self.__object_maps: List[ObjectMap] = kwargs['object_maps'] if 'object_maps' in kwargs else None
+        
+        if predicates:
+            if isinstance(predicates, Predicate):
+                self._predicates = [predicates]
+            else:
+                self._predicates = predicates
+        else:
+            self._predicates = None
+                
+        if object_maps:
+            if isinstance(object_maps, ObjectMap):
+                self.__object_maps = [object_maps]
+            else:
+                self.__object_maps = object_maps
+        else:
+            self.__object_maps = None
+        
     
     @property
     def predicates(self) -> List[Predicate]:
@@ -732,42 +778,49 @@ class PredicateObjectMap(AbstractMap):
             return PredicateObjectMap(pom, predicates=predicates, object_maps=object_maps)
         else:
             return None;
+        
+    def to_rdf(self):
+        g: Graph = Graph()
+        
+        g.add((self, RDF.type, rml_vocab.RR_NS.PredicateObjectMap))
+        
+        if self.predicates:
+            for pred in self.predicates:
+                
+                if not isinstance(pred, ConstantPredicate):
+                    g.add((self, rml_vocab.RR_NS.predicateMap, pred))
+                
+                g_1 = pred.to_rdf()
+                for t in g_1:
+                    g.add(t)
+        if self.object_maps:    
+            for om in self.object_maps:
+                
+                if not isinstance(om, ConstantObjectMap):
+                    g.add((self, rml_vocab.RR_NS.objectMap, om))
+                    
+                g_1 = om.to_rdf()
+                for t in g_1:
+                    g.add(t)
+        
+        return g
     
 class ObjectMapBuilder():
     
     @staticmethod
     def build(g: Graph, parent: IdentifiedNode) -> List[ObjectMap]:
         
-        query = prepareQuery(
-            """
-                SELECT DISTINCT ?om ?omtype
-                WHERE {
-                    { 
-                        ?pom rr:object ?om
-                        BIND('shortconstant' as ?omtype) 
-                    }
-                    UNION
-                    { 
-                        ?pom rr:objectMap ?om
-                        BIND('map' as ?omtype) 
-                    }
-            }""", 
-            initNs = { "rr": rml_vocab.RR})
-
-        qres = g.query(query, initBindings = { "pom": parent})
-        
         object_maps = [] 
-        for res in qres:
-            omtype = res.omtype
-            om = res.om
-            if omtype.value == 'shortconstant':
-                object_maps += [ConstantObjectMap(om, None)]
+        
+        for om in g.objects(parent, rml_vocab.OBJECT, True):
+            object_maps += [ConstantObjectMap(om, None)]
+            
+        for om in g.objects(parent, rml_vocab.OBJECT_MAP, True):
+            if (om, rml_vocab.PARENT_TRIPLES_MAP, None) in g:
+                object_maps += ReferencingObjectMap.from_rdf(g, om)
             else:
-                if (om, rml_vocab.PARENT_TRIPLES_MAP, None) in g:
-                    object_maps += ReferencingObjectMap.from_rdf(g, om)
-                else:
-                    object_maps += TermObjectMap.from_rdf(g, om)
-                
+                object_maps += TermObjectMap.from_rdf(g, om)
+            
         return object_maps
 
 
@@ -792,9 +845,8 @@ class Join(AbstractMap):
         g = Graph()
         
         if self.__child is not None and self.__parent is not None:
-            join = self._id
-            g.add((join, rml_vocab.CHILD, self.__child))
-            g.add((join, rml_vocab.PARENT, self.__parent))
+            g.add((self, rml_vocab.CHILD, self.__child))
+            g.add((self, rml_vocab.PARENT, self.__parent))
             
         return g
     
@@ -819,8 +871,8 @@ class InputFormatNotSupportedError(Exception):
 
 
 class LogicalSource(AbstractMap):
-    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
-        super().__init__(map_id, value)
+    def __init__(self, map_id: IdentifiedNode, **kwargs):
+        super().__init__(map_id)
         self.__separator : str = kwargs['separator'] if 'separator' in kwargs else ',' 
         self.__query : str = kwargs['query'] if 'query' in kwargs else None
         self.__table_name : str = kwargs['table_name'] if 'table_name' in kwargs else None
@@ -884,13 +936,20 @@ class LogicalSource(AbstractMap):
             for source in self.sources:
                 if isinstance(source, BaseSource):
                     if self.__reference_formulation == rml_vocab.JSON_PATH and self.__iterator:
-                        json_data = json.load(open(source._mapped_entity,mode='r',encoding='utf-8'))
-                        
+                        parsed = urlparse(source._mapped_entity)
+
+                        if parsed.scheme in ("http", "https"):
+                            with urllib.request.urlopen(source._mapped_entity) as response:
+                                json_data = json.load(response)
+                        else:
+                            with open(source._mapped_entity, encoding="utf-8") as f:
+                                json_data = json.load(f)
+
                         jsonpath_expr = parse(self.__iterator)
                         matches = jsonpath_expr.find(json_data)
-                
+
                         data = [match.value for match in matches]
-                        
+
                         df = pd.json_normalize(data)
                         
                     elif (self.__reference_formulation == rml_vocab.XML or self.__reference_formulation == rml_vocab.XPAPTH) and self.__iterator:
@@ -998,7 +1057,7 @@ class LogicalSource(AbstractMap):
             
             rf = rf if rf else rml_vocab.CSV
             
-            ls = LogicalSource(ls, None, sources=sources, separator=sep, query=query, table_name= table_name, iterator=ite, reference_formulation=rf)
+            ls = LogicalSource(ls, sources=sources, separator=sep, query=query, table_name= table_name, iterator=ite, reference_formulation=rf)
             term_maps.append(ls)
         
         return term_maps
@@ -1070,33 +1129,79 @@ class GraphMap(AbstractMap):
         
         return gmps
     
+    def to_rdf(self):
+        pass
+    
 class SubjectMap(AbstractMap):
-    def __init__(self, map_id: IdentifiedNode, value: Node = None, **kwargs):
+    
+    #__slots__ = ('__reference', '__function', '__reference', '__template', '__classes', '__graph_maps', '__term_type', '__tt', '_function_map')
+    
+    def __init__(self, map_id: IdentifiedNode, 
+                 constant: Union[Literal,str] = None,
+                 template: Union[Literal,str] = None,
+                 reference: Union[Literal,str] = None,
+                 **kwargs):
+        
+        super().__init__(map_id, constant=constant, template=template, reference=reference)
+        
+        self.__function = None
+        
+        
+        if 'function' in kwargs and kwargs['function']:
+            self.__function = kwargs['function']
+            value = self.__function
         
         # , term_type: Literal, class_: Set[URIRef] = None, graph_map: GraphMap = None, map_id: URIRef = None
-        super().__init__(map_id, value)
-        self.__value = value
-        self.__classes: List[URIRef] = kwargs['_classes'] if '_classes' in kwargs else None
+        
+        self.__classes: Union[List[URIRef], URIRef] = kwargs['_classes'] if '_classes' in kwargs else None
         self.__graph_maps: List[GraphMap] = kwargs['graph_maps'] if 'graph_maps' in kwargs else None
         self.__term_type: Literal = kwargs['term_type'] if 'term_type' in kwargs else None
         self.__tt: IdentifiedNode = kwargs['tt'] if 'tt' in kwargs else rml_vocab.IRI
         self._function_map: FunctionMap = kwargs['function_map'] if 'function_map' in kwargs else None
+        
+    
+    @property
+    def function(self) -> Literal:
+        return self.__function
     
     @property
     def value(self) -> Literal:
-        return self.__value
+        return self._mapped_entity
     
     @property
     def _classes(self) -> URIRef:
-        return self.__classes
+        if isinstance(self.__classes, str):
+            return [self.__classes]
+        else:
+            return self.__classes
     
     @property
     def graph_maps(self) -> List[GraphMap]:
-        return self.__graph_maps
+        if isinstance(self.__graph_maps, str):
+            return [self.__graph_maps]
+        else:
+            return self.__graph_maps
     
     @property
     def term_type(self) -> Literal:
         return self.__term_type
+
+    def to_rdf(self):
+        g: Graph = super().to_rdf()
+        g.add((self, RDF.type, rml_vocab.SUBJECT_MAP))
+        
+        if self._classes:
+            for _class in self._classes:
+                print(_class)
+                g.add((self, rml_vocab.CLASS, _class))
+                
+        if self.graph_maps:
+            for gm in self.graph_maps:
+                gm_g = gm.to_rdf()
+                for t in gm_g:
+                    g.add(t)
+            
+        return g
                 
     def apply(self, data_source: DataSource = None) -> np.array:
         
@@ -1183,11 +1288,25 @@ class SubjectMap(AbstractMap):
         
         graph_maps = GraphMap.from_rdf(graph, row.sm)
         
+        constant = None
+        function = None
+        template = None
+        reference = None
+        
+        
         function_map = None   
         if row.termType == Literal("functionmap"):
             function_map = FunctionMap.from_rdf(graph, row.map)[0]
+            function = row.map
+        elif row.termType == Literal("constant"):
+            constant = row.map
+        elif row.termType == Literal("template"):
+            template = row.map
+        elif row.termType == Literal("reference"):
+            reference = row.map
         
-        return SubjectMap(_id, row.map, _classes=classes, graph_maps=graph_maps, term_type=row.termType, tt=row.tt, function_map=function_map)
+        
+        return SubjectMap(_id, constant=constant, function=function, template=template, reference=reference, _classes=classes, graph_maps=graph_maps, term_type=row.termType, tt=row.tt, function_map=function_map)
         
     
 
@@ -1556,14 +1675,36 @@ class TripleMappings(AbstractMap):
         return TripleMappings(tm, None, sources=sources, subject_maps=subject_maps, predicate_object_maps=predicate_object_maps, condition=condition, base=g.base)
         
     
-    
+    def to_rdf(self):
+        g: Graph = Graph()
+        g.add((self, RDF.type, rml_vocab.TRIPLES_MAP))
+        if self.logical_sources:
+            for logical_source in self.logical_sources:
+                g += logical_source.to_rdf()
+                
+                    
+        if self.subject_maps:
+            for subject_map in self.subject_maps:
+                g += subject_map.to_rdf()
+                
+        if self.predicate_object_maps:
+            for predicate_object_map in self.predicate_object_maps:
+                g += predicate_object_map.to_rdf()
+                
+        return g
         
     
 class ReferencingObjectMap(ObjectMap):
-    def __init__(self, map_id: URIRef = None, **kwargs):
+    def __init__(self, 
+                 map_id: URIRef, 
+                 parent_triples_maps: Union[List[TripleMappings], TripleMappings],
+                 joins: Union[List[Join], Join] = None):
         super().__init__(map_id)
-        self.__parent_triples_maps: List[TripleMappings] = kwargs['parent_triples_maps'] if 'parent_triples_maps' in kwargs else None 
-        self.__joins: List[Join] = kwargs['joins'] if 'joins' in kwargs else None
+        
+        
+        self.__parent_triples_maps = None if not parent_triples_maps else [parent_triples_maps] if isinstance(parent_triples_maps, TripleMappings) else parent_triples_maps  
+        self.__joins = None if not joins else [joins] if isinstance(joins, Join) else joins
+        
         
     @property
     def parent_triples_maps(self) -> List[TripleMappings]:
@@ -1601,16 +1742,30 @@ class ReferencingObjectMap(ObjectMap):
         
         parent_triples = TripleMappings.from_rdf(g, parent)
         if parent_triples:
-            rmo = ReferencingObjectMap(parent, joins=joins, parent_triples_maps=parent_triples)
+            rmo = ReferencingObjectMap(parent, parent_triples_maps=parent_triples, joins=joins)
             term_maps.append(rmo)
            
         return term_maps
+    
+    def to_rdf(self):
+        g: Graph = Graph()
+        g.add((self, RDF.type, rml_vocab.RML_NS.RefObjectMap))
         
+        if self.parent_triples_maps:
+            for ptm in self.parent_triples_maps:
+                g.add((self, rml_vocab.RR_NS.parentTriplesMap, ptm._id))
+                
+        if self.join_conditions:
+            for join in self.join_conditions:
+                g.add((self, rml_vocab.RR_NS.joinCondition, join._id))
+                join.to_rdf()
+                
+        return g
     
 class Source(AbstractMap):
     
-    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
-        super().__init__(map_id, value)
+    def __init__(self, map_id: IdentifiedNode, **kwargs):
+        super().__init__(map_id)
         
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode) -> 'Source':
@@ -1635,17 +1790,17 @@ class Source(AbstractMap):
                     return [SQLSource.from_rdf(g, db)]
             
             if sourcetype:
-                term_maps.append(Source.__build(g, source, sourcetype))
+                term_maps.append(Source.__build(g, parent, source, sourcetype))
                 
         return term_maps
         
         
     @staticmethod         
-    def __build(g, source, sourcetype):
+    def __build(g, parent, source, sourcetype):
         
         sourcetype = sourcetype.value
         if sourcetype == 'plain':
-            return BaseSource.from_rdf(g, source)
+            return BaseSource(parent, url=source)
         elif sourcetype == 'table':
             return CSVSource.from_rdf(g, source)
         elif sourcetype == 'sparql':
@@ -1661,23 +1816,33 @@ class Source(AbstractMap):
 
 class BaseSource(Source):
     
-    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
-        super().__init__(map_id, value)
+    def __init__(self, map_id: IdentifiedNode, **kwargs):
+        super().__init__(map_id)
+        self.__url = kwargs['url'] if 'url' in kwargs else None
+        self._mapped_entity = self.__url
         
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode) -> 'BaseSource':
         
-        return BaseSource(parent, parent.value)
+        source = g.value(parent, rml_vocab.RML_NS.source, None, True)
+        return BaseSource(parent, url=source)
+    
+    @property
+    def url(self):
+        return self.__url
         
 
 class CSVSource(Source):
     
-    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
-        super().__init__(map_id, value)
+    def __init__(self, map_id: IdentifiedNode, **kwargs):
+        if 'url' in kwargs:
+            super().__init__(map_id, url=kwargs['url']) 
+        else: 
+            super().__init__(map_id) 
         
         self.__delimiter = kwargs['delimiter'] if 'delimiter' in kwargs else ','
         self.__encoding = kwargs['encoding'] if 'encoding' in kwargs else 'UTF-8'
-        self.__url = value
+        self.__url = kwargs['url'] if 'url' in kwargs else None
         
     
     @property
@@ -1687,10 +1852,6 @@ class CSVSource(Source):
     @property
     def encoding(self):
         return self.__encoding
-    
-    @property
-    def url(self):
-        return self.__url
     
     @staticmethod
     def from_rdf(g: Graph, parent: IdentifiedNode) -> Source:
@@ -1724,14 +1885,61 @@ class CSVSource(Source):
         else:
             return None
         
+    def to_rdf(self):
+        g: Graph = Graph()
+        
+        csvw: Namespace = Namespace('http://www.w3.org/ns/csvw#')
+        
+        g.add((self, RDF.type, csvw.Table))
+        
+        if self.url:
+            g.add((self, csvw.url, Literal(self.url)))
+            
+        if self.delimiter or self.encoding:
+            
+            dialect = BNode()
+            g.add((self, csvw.dialect, dialect))
+            g.add((dialect, RDF.type, csvw.Dialect))
+            if self.delimiter:
+                g.add((dialect, csvw.delimiter, Literal(self.delimiter)))
+                
+            if self.encoding:
+                g.add((dialect, csvw.encoding, Literal(self.encoding)))
+        
+        return g
+    
+    
 class SPARQLSource(Source):
     
-    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
-        super().__init__(map_id, value)
+    def __init__(self, map_id: IdentifiedNode, **kwargs):
+        super().__init__(map_id)
         
-        self.__endpoint : URIRef = kwargs['endpoint'] if 'endpoint' in kwargs else None
-        self.__supported_language : URIRef = kwargs['supported_language'] if 'supported_language' in kwargs else URIRef('http://www.w3.org/ns/sparql-service-description#SPARQL11Query')
-        self.__result_format : URIRef = kwargs['result_format'] if 'result_format' in kwargs else URIRef('http://www.w3.org/ns/formats/SPARQL_Results_JSON')
+        if 'endpoint' in kwargs:
+            endpoint = kwargs['endpoint']
+            if endpoint:
+                self.__endpoint : URIRef = endpoint if isinstance(endpoint, URIRef) else URIRef(endpoint)
+            else:
+                self.__endpoint = None
+        else:
+            self.__endpoint = None
+            
+        if 'supported_language' in kwargs:
+            supported_language = kwargs['supported_language']
+            if supported_language:
+                self.__supported_language : URIRef = supported_language if isinstance(supported_language, URIRef) else URIRef(supported_language)
+            else:
+                self.__supported_language = None
+        else:
+            self.__supported_language = None
+            
+        if 'result_format' in kwargs:
+            result_format = kwargs['result_format']
+            if result_format:
+                self.__result_format : URIRef = result_format if isinstance(result_format, URIRef) else URIRef(result_format)
+            else:
+                self.__result_format = None
+        else:
+            self.__result_format = None
         
     @property
     def endpoint(self):
@@ -1760,15 +1968,32 @@ class SPARQLSource(Source):
             result_format = g.value(parent, sd.resultFormat, None, True)
             result_format = result_format if result_format else w3_formats.SPARQL_Results_JSON
                 
-            return SPARQLSource(parent, endpoint, endpoint=endpoint, supported_language=supported_language, result_format=result_format)
+            return SPARQLSource(parent, endpoint=endpoint, supported_language=supported_language, result_format=result_format)
                 
         else:
             return None
         
+    def to_rdf(self):
+        g: Graph = Graph()
+        
+        sd: Namespace = Namespace('http://www.w3.org/ns/sparql-service-description#')
+        
+        g.add((self, RDF.type, sd.Service))
+        
+        if self.endpoint:
+            g.add((self, sd.endpoint, self.endpoint))
+            
+        if self.result_format:
+            g.add((self, sd.resultFormat, self.result_format))
+        
+        return g
+        
 class SQLSource(Source):
     
-    def __init__(self, map_id: IdentifiedNode, value: Node, **kwargs):
-        super().__init__(map_id, value)
+    def __init__(self, map_id: IdentifiedNode, **kwargs):
+        super().__init__(map_id)
+        
+        self.__cast(Literal, kwargs)
         
         self.__dsn : Literal = kwargs['dsn'] if 'dsn' in kwargs else None
         self.__driver : Literal = kwargs['driver'] if 'driver' in kwargs else None
@@ -1776,6 +2001,13 @@ class SQLSource(Source):
         self.__password: Literal = kwargs['password'] if 'password' in kwargs else None
         self.__result_size_limit = kwargs['result_size_limit'] if 'result_size_limit' in kwargs else None
         self.__fetch_size = kwargs['fetch_size'] if 'fetch_size' in kwargs else None
+        
+    def __cast(self, _class: callable, values: dict):
+        for k,v in values.items():
+            v = _class(v)
+            values.update({k:v})
+            
+        return values
         
     @property
     def dsn(self):
@@ -1823,6 +2055,27 @@ class SQLSource(Source):
                 
         else:
             return None
+        
+    def to_rdf(self):
+        g: Graph = Graph()
+        
+        d2rq = Namespace('http://www.wiwiss.fu-berlin.de/suhl/bizer/D2RQ/0.1#')
+        
+        g.add((self, RDF.type, d2rq.Database))
+        if self.dsn:
+            g.add((self, d2rq.jdbcDSN, self.dsn))
+        if self.driver:
+            g.add((self, d2rq.jdbcDriver, self.driver))
+        if self.username:
+            g.add((self, d2rq.username, self.username))
+        if self.password:
+            g.add((self, d2rq.password, self.password))
+        if self.result_size_limit:
+            g.add((self, d2rq.resultSizeLimit, self.result_size_limit))
+        if self.fetch_size:
+            g.add((self, d2rq.fetchSize, self.fetch_size))
+        
+        return g
     
         
         
@@ -1877,4 +2130,30 @@ class RMLFunction():
                 
             #g += tm.apply()
     
+        
+class RMLResource:
+    
+    def __init__(self, triples_maps: Union[TripleMappings] = None):
+        
+        self.__triples_maps = dict()
+        if triples_maps:
+            for triples_map in triples_maps:
+                self.__triples_maps[triples_map.n3()] = triples_maps
+        
+    
+    @property
+    def triples_maps(self):
+        return self.__triples_maps.values()
+    
+    def triple_map(self, _id: str):
+        return self.__triples_maps[_id] if _id in self.__triple_maps else None
+    
+    def to_graph(self):
+        g: Graph = Graph()
+        
+        for triples_map in self.__triples_maps:
+            g += triples_map.to_rdf()
+            
+        return g
+        
         

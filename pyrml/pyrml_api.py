@@ -1,3 +1,4 @@
+from pyrml import rml_vocab
 __author__ = "Andrea Giovanni Nuzzolese"
 __email__ = "andrea.nuzzolese@cnr.it"
 __license__ = "Apache 2"
@@ -9,12 +10,13 @@ from abc import ABC, abstractmethod
 import hashlib
 import os
 import re
-from typing import Set, Dict, Type
+from typing import Set, Dict, Type, Optional, Union
 
 from lark import Lark, Token
 from lark.visitors import Transformer
-from rdflib import URIRef, Graph, BNode, Literal, IdentifiedNode
-from rdflib.term import Node
+from rdflib import URIRef, Graph, BNode, Literal, IdentifiedNode, RDF
+from rdflib.term import Node, Identifier
+from rdflib.namespace import NamespaceManager
 import unidecode
 import pandas as pd
 import numpy as np
@@ -58,13 +60,25 @@ def multigen(gen_func):
             return gen_func(*self.__args, **self.__kwargs)
     return _multigen
 
-class TermMap(ABC):
+class TermMap(IdentifiedNode):
     
-    def __init__(self, map_id: IdentifiedNode = None):
+    def __init__(self, 
+                 map_id: IdentifiedNode = None, 
+                 constant: Union[Literal,str] = None,
+                 template: Union[Literal,str] = None,
+                 reference: Union[Literal,str] = None):
         if map_id is None:
             self._id = BNode()
-        else:
+        elif isinstance(map_id, IdentifiedNode):
             self._id = map_id
+        elif isinstance(map_id, str):
+            self._id = URIRef(map_id)
+        else:
+            self._id = BNode()
+            
+        self.__constant = constant
+        self.__reference = reference
+        self.__template = template
             
         self._function_map = None
         
@@ -75,6 +89,18 @@ class TermMap(ABC):
         if isinstance(other, TermMap):
             return self._id == other._id
         return NotImplemented
+    
+    @property
+    def template(self) -> Literal:
+        return self.__template
+    
+    @property
+    def constant(self) -> Node:
+        return self.__constant
+    
+    @property
+    def reference(self) -> Literal:
+        return self.__reference
         
     @property
     def function_map(self):
@@ -99,6 +125,22 @@ class TermMap(ABC):
     def from_rdf(g: Graph) -> Set[object]:
         pass
     
+    
+    def n3(self, namespace_manager: Optional[NamespaceManager] = None) -> str:
+        return self._id.n3(namespace_manager)
+    
+    
+    def to_rdf(self):
+        g: Graph = Graph()
+        
+        if self.template:
+            g.add((self, rml_vocab.TEMPLATE, self.template))
+        if self.constant:
+            g.add((self, rml_vocab.CONSTANT, self.constant))
+        if self.reference:
+            g.add((self, rml_vocab.REFERENCE, self.reference))
+            
+        return g
 class Evaluable():
     
     @abstractmethod
@@ -265,18 +307,42 @@ class Expression():
         
     
 class AbstractMap(TermMap):
-    def __init__(self, map_id: URIRef = None, mapped_entity: Node = None):
-        super().__init__(map_id)
-        self._mapped_entity = mapped_entity
+    
+    def __new__(cls, value:str, constant: Union[Node,str] = None,
+                 template: Union[Node,str] = None,
+                 reference: Union[Node,str] = None,
+                 **kwargs) -> Identifier:
+        return TermMap.__new__(cls, value)
+    
+    def __init__(self, map_id: URIRef = None, 
+                 constant: Union[Node,str] = None,
+                 template: Union[Node,str] = None,
+                 reference: Union[Node,str] = None):
+        if template:
+            template = template if isinstance(template, Node) else Literal(template)
+            self._mapped_entity = template
+        elif reference:
+            reference = reference if isinstance(reference, Node) else Literal(reference)
+            self._mapped_entity = reference
+        elif constant:
+            constant = constant if isinstance(constant, Node) else Literal(constant)
+            self._mapped_entity = constant
+        else:
+            self._mapped_entity = None
+            
+        super().__init__(map_id, 
+                         constant = constant,
+                         template = template,
+                         reference = reference)
         
         self._expression = Expression()
         
-        if mapped_entity is not None and isinstance(mapped_entity, str):
+        if self._mapped_entity is not None and isinstance(self._mapped_entity, str):
             p = re.compile('(?<=\%eval:).+?(?=\%)')
             
-            matches = p.finditer(mapped_entity)
+            matches = p.finditer(self._mapped_entity)
             #s = "'{mapped_entity}'".format(mapped_entity=mapped_entity.replace("'", "\\'"))
-            s = mapped_entity
+            s = self._mapped_entity
             
             cursor = 0
 
@@ -318,6 +384,7 @@ class AbstractMap(TermMap):
             
     def get_mapped_entity(self) -> Node:
         return self._mapped_entity
+    
     
     '''
     @staticmethod

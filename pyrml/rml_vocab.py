@@ -95,6 +95,8 @@ PREDICATE = URIRef(RR + "predicate")
 
 PREDICATE_MAP = URIRef(RR + "predicateMap")
 
+OBJECT = URIRef(RR + "object")
+
 OBJECT_MAP = URIRef(RR + "objectMap")
 
 OBJECT_MAP_CLASS = URIRef(RR + "ObjectMap")
