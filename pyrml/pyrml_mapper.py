@@ -4,6 +4,7 @@ __license__ = "Apache 2"
 __version__ = "0.2.9"
 __status__ = "Alpha"
 
+import itertools
 import logging
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
@@ -178,7 +179,7 @@ class RMLConverter(Mapper):
                     else:
                         return _value
                 
-                for _tuple in tuples:
+                for _tuple in (expanded for row in tuples for expanded in expand_terms(row)):
                     subj = normalize_iri(_tuple[0])
                     pred = normalize_iri(_tuple[1])
                     obj = normalize_iri(_tuple[2])
@@ -391,6 +392,18 @@ class LogicalSourceIndex():
     def add_triple_map(self, tm: TripleMapping):
         self.__triple_maps.append(tm)
     
+def _flatten_term(term) -> List[Node]:
+    if isinstance(term, (list, np.ndarray)):
+        return [t for sub_term in term for t in _flatten_term(sub_term)]
+    return [] if term is None or pd.isna(term) else [term]
+
+def expand_terms(_tuple) -> Generator:
+    '''
+    Term maps (e.g. function-valued subject maps) may produce a list of terms
+    for a row: generate one tuple for each combination of terms.
+    '''
+    return itertools.product(*[_flatten_term(term) for term in _tuple])
+
 def initializer(rml_converter):
     logger = logging.getLogger("rdflib")
     logger.setLevel(logging.ERROR)

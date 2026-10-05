@@ -208,7 +208,7 @@ def string_length(s: str) -> int:
 def controls_if(cond: bool, e_true: T, e_false: T = None) -> int:
     
     
-    return e_true if str(cond)=='true' else e_false
+    return e_true if str(cond).lower() == 'true' else e_false
 
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#listContainsElement', 
               l='http://example.com/idlab/function/list',
@@ -349,7 +349,7 @@ def math_log(num: float) -> float:
 @rml_function(fun_id='http://users.ugent.be/~bjdmeest/function/grel.ttl#boolean_not', 
               bool_value='http://users.ugent.be/~bjdmeest/function/grel.ttl#bool_b')
 def boolean_not(bool_value: bool) -> bool:
-    return not (True if bool_value == 'true' else False)
+    return str(bool_value).lower() != 'true'
 
 @rml_function(fun_id='http://example.com/idlab/function/random')
 def random() -> str:
